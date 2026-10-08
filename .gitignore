@@ -1,0 +1,22 @@
+# binaries
+/bin/
+
+# env & secrets
+.env
+*.pem
+*.key
+
+# terraform
+infra/*/.terraform/
+infra/*/.terraform.lock.hcl
+infra/*/terraform.tfvars
+*.tfstate
+*.tfstate.*
+*.tfplan
+.envrc
+
+# local
+.wrangler/
+.DS_Store
+.playwright-mcp/
+.claude/

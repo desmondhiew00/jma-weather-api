@@ -1,0 +1,273 @@
+---
+import { t } from '../lib/i18n.js';
+import '../styles/global.css';
+
+const { lang = 'en', title, description, jsonLd, noindex = false, compactNav = false } = Astro.props;
+const s = t(lang);
+
+// The bare path, locale prefix stripped, so canonical/hreflang and the language
+// switch all point at the same page in the other language.
+const bare = Astro.url.pathname.replace(/^\/ja/, '').replace(/\/$/, '') || '/';
+const site = Astro.site ?? new URL('https://tenkinow.com');
+const abs = (p: string) => new URL(p, site).href;
+const canonical = abs(lang === 'ja' ? `/ja${bare === '/' ? '' : bare}` : bare);
+const home = lang === 'ja' ? '/ja' : '/';
+
+// Plus Jakarta Sans, Geist and Geist Mono carry every page. The Japanese gothic
+// is only requested on Japanese pages because it is the largest thing the site loads,
+// and an English reader never renders a glyph from it.
+const LATIN =
+  'family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500';
+const CJK = '&family=Zen+Kaku+Gothic+New:wght@400;500;700';
+const fontHref = `https://fonts.googleapis.com/css2?${LATIN}${lang === 'ja' ? CJK : ''}&display=swap`;
+
+// N5 floating pill. The underline is drawn on hover and held for the current
+// page, so "where am I" survives being read without colour.
+// The vertical padding is the tap target, and a finger needs more of it than a
+// mouse. This nav is sticky, though, so it buys the height back by setting the
+// labels a step smaller on a phone. Japanese pays for this twice: プレイグラウンド
+// is eight characters where "Playground" is one word, and at the desktop size
+// the four destinations took a third row of a screen that has none to spare.
+const navLink = [
+  'relative py-1 [@media(pointer:coarse)]:py-2',
+  'text-[0.84rem] text-neutral no-underline whitespace-nowrap sm:text-[0.9rem]',
+  'transition-colors duration-150 ease-out hover:text-ink',
+  'after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:origin-left',
+  'after:scale-x-0 after:bg-accent after:transition-transform after:duration-200 after:ease-out',
+  'hover:after:scale-x-100',
+  'aria-[current=page]:text-ink aria-[current=page]:after:scale-x-100',
+].join(' ');
+
+const links = [
+  // Overview stands down on a phone: the wordmark beside it already goes home,
+  // and one destination fewer is the difference between a row that fits and a
+  // row the reader has to scroll.
+  { href: home, label: s.nav.overview, here: bare === '/', phone: false },
+  {
+    href: lang === 'ja' ? '/ja/map' : '/map',
+    label: s.nav.map,
+    here: bare === '/map',
+  },
+  {
+    href: lang === 'ja' ? '/ja/station' : '/station',
+    label: s.station.all,
+    here: bare === '/station',
+  },
+  {
+    href: lang === 'ja' ? '/ja/playground' : '/playground',
+    label: s.nav.playground,
+    here: bare === '/playground',
+  },
+  {
+    href: lang === 'ja' ? '/ja/docs' : '/docs',
+    label: s.nav.reference,
+    here: bare === '/docs',
+  },
+];
+---
+
+<!doctype html>
+<html lang={s.htmlLang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="en" href={abs(bare)} />
+    <link rel="alternate" hreflang="ja" href={abs(`/ja${bare === '/' ? '' : bare}`)} />
+    <link rel="alternate" hreflang="x-default" href={abs(bare)} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="天気Now" />
+    <meta property="og:locale" content={lang === 'ja' ? 'ja_JP' : 'en_US'} />
+    <meta property="og:locale:alternate" content={lang === 'ja' ? 'en_US' : 'ja_JP'} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <!-- One shared card image rather than one per page: the pages differ in
+         wording, not in what a 1200x630 thumbnail could usefully show, and a
+         link with no image at all is a grey box in every chat client. -->
+    <meta property="og:image" content={abs('/og.png')} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={s.colophon.tagline} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={abs('/og.png')} />
+    <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
+    <!-- The sky the page opens under, so the browser chrome matches the ground. -->
+    <meta name="theme-color" content="#e6effa" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href={fontHref} />
+    <!-- An agent that reads plain text before it renders anything gets pointed
+         at the summary written for it. -->
+    <link rel="alternate" type="text/plain" href={abs('/llms.txt')} title="llms.txt" />
+    <script
+      type="application/ld+json"
+      set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@graph': [
+          {
+            '@type': 'Organization',
+            '@id': 'https://tenkinow.com/#org',
+            name: '天気Now',
+            alternateName: 'tenkinow',
+            url: 'https://tenkinow.com/',
+            email: 'contact@tenkinow.com',
+          },
+          {
+            '@type': 'WebSite',
+            '@id': 'https://tenkinow.com/#site',
+            name: '天気Now',
+            url: 'https://tenkinow.com/',
+            inLanguage: ['en', 'ja'],
+            publisher: { '@id': 'https://tenkinow.com/#org' },
+          },
+          ...[jsonLd ?? []]
+            .flat()
+            .map((n) => ({ ...n, isPartOf: { '@id': 'https://tenkinow.com/#site' } })),
+        ],
+      })}
+    ></script>
+  </head>
+  <body>
+    <!-- Keyboard and screen-reader users get a way past the nav. -->
+    <a
+      class="absolute top-0 left-[-9999px] z-60 rounded-full bg-accent px-5 py-3 font-medium text-card no-underline focus:left-4 focus:top-4"
+      href="#main"
+    >
+      {s.skip}
+    </a>
+
+    <!-- N5: a floating card, clear of every edge, held above the page by its shadow.
+         On a phone the destinations are one row that scrolls sideways rather
+         than a stack that grows downward: five of them wrapped is three rows of
+         sticky nav, which is a quarter of a phone screen the map page needs. A
+         disclosure the reader has to open is worse than either. -->
+    <div class="wrap sticky top-0 z-50 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header class="cloud flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
+        <a
+          class="flex items-center gap-2 font-display text-[1.3rem] leading-none font-extrabold tracking-[-0.04em] text-ink no-underline"
+          href={home}
+        >
+          <img src="/favicon.svg" alt="" width="24" height="24" class="rounded-[5px]" />
+          <span class="wordmark">
+            天気<span class="wordmark-latin">Now</span>
+            <span class="wordmark-badge" aria-hidden="true">
+              api
+            </span>
+          </span>
+        </a>
+
+        <!-- The language switch rides on the wordmark row rather than taking a
+             third row of its own on a phone: the nav is sticky, and a third row
+             costs 45px of every screen. On sm it goes back to the end. -->
+        <a
+          class="chip ml-auto min-h-0 px-2.5 py-1.5 text-[0.72rem] [@media(pointer:coarse)]:min-h-0 [@media(pointer:coarse)]:px-2.5 sm:order-last sm:ml-0"
+          href={s.other.path(bare)}
+          lang={s.other.code}
+          hreflang={s.other.code}
+        >
+          {s.other.label}
+        </a>
+
+        <!-- On the map page the phone header stands down to the wordmark and
+             the language switch: the destinations are a row of chrome over a
+             view whose whole point is the map underneath it. From sm up there
+             is room, so they come back. -->
+        <nav
+          class={`no-bar flex w-full items-center gap-x-5 overflow-x-auto sm:ml-auto sm:w-auto sm:flex-wrap sm:gap-x-7 sm:gap-y-3 sm:overflow-visible${compactNav ? ' max-sm:hidden' : ''}`}
+          aria-label={s.nav.overview}
+        >
+          {links.map((l) => (
+            <a
+              class={`${navLink}${l.phone === false ? ' max-sm:hidden' : ''}`}
+              href={l.href}
+              aria-current={l.here ? 'page' : undefined}
+            >
+              {l.label}
+            </a>
+          ))}
+        </nav>
+      </header>
+    </div>
+
+    <slot />
+
+    <!-- Ft4 as a colophon in four parts: the identity, the numbers that say
+         how the service runs, wayfinding and contact, then the attribution as
+         fine print. Hairlines separate them, and the footer sits on the page
+         ground rather than on a tint; with hairlines already giving it
+         structure, a tinted slab behind it would be redundant. -->
+    <footer class="wrap mt-[var(--section-gap)] pb-10">
+      <div class="border-t border-rule pt-9">
+        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <p class="m-0 flex items-center gap-2 font-display text-[1.05rem] font-extrabold tracking-[-0.03em] text-ink">
+            <img src="/favicon.svg" alt="" width="20" height="20" class="rounded-[4px]" />
+            <span class="wordmark">
+              天気<span class="wordmark-latin">Now</span>
+              <span class="wordmark-badge" aria-hidden="true">
+                api
+              </span>
+            </span>
+          </p>
+          <p class="m-0 text-[0.84rem] text-neutral">{s.colophon.tagline}</p>
+        </div>
+
+        <!-- The footer's one emphasised row. Each value is a real operating
+             characteristic of the service. -->
+        <dl class="mt-7 grid grid-cols-2 gap-x-8 gap-y-5 sm:flex sm:flex-wrap sm:gap-x-0">
+          {s.colophon.facts.map(([value, label], i) => (
+            <div class={`sm:pr-8 ${i > 0 ? 'sm:border-l sm:border-rule sm:pl-8' : ''}`}>
+              <dt class="mono text-[1.02rem] leading-none font-medium text-ink">{value}</dt>
+              <dd class="m-0 mt-1.5 text-[0.78rem] leading-none text-muted">{label}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <hr class="rule mt-8 mb-5" />
+
+        <div class="flex flex-wrap items-center gap-x-7 gap-y-3 text-[0.86rem]">
+          <nav class="flex flex-wrap items-center gap-x-6 gap-y-3" aria-label={s.nav.overview}>
+            {links.map((l) => (
+              <a
+                class="text-neutral no-underline hover:text-ink [@media(pointer:coarse)]:py-2"
+                href={l.href}
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
+          <p class="m-0 ml-auto flex flex-wrap items-center gap-x-6 gap-y-3">
+            <a class="[@media(pointer:coarse)]:py-2" href="mailto:contact@tenkinow.com">
+              {s.colophon.contact}
+            </a>
+            <a
+              class="text-neutral decoration-rule-2 [@media(pointer:coarse)]:py-2"
+              href="mailto:security@tenkinow.com"
+            >
+              {s.colophon.security}
+            </a>
+            <a
+              class="text-neutral decoration-rule-2 [@media(pointer:coarse)]:py-2"
+              href="https://github.com/desmondhiew00/jma-weather-api"
+            >
+              {s.colophon.source}
+            </a>
+          </p>
+        </div>
+
+        <hr class="rule mt-5 mb-5" />
+
+        <p class="m-0 max-w-[86ch] text-[0.76rem] leading-[1.75] text-muted">
+          {s.footer[0]}
+          <a href="https://www.jma.go.jp/">jma.go.jp</a>
+          {s.footer[1]}
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

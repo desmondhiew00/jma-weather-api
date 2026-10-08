@@ -1,0 +1,802 @@
+# Hand-written, not generated. It is embedded into the binary and served at
+# /v1/openapi.yaml; handler_test.go parses it so a typo here fails the build
+# rather than the docs page.
+openapi: 3.1.0
+
+info:
+  title: tenkinow
+  version: "1"
+  summary: JMA AMeDAS weather observations for Japan, by coordinate.
+  description: |
+    Observations are polled from the Japan Meteorological Agency every five
+    minutes and kept for 30 days. Every query resolves a coordinate to the
+    nearest station and returns that station's reading. Nothing is
+    interpolated, so `station` and `station.distance_km` ship with every
+    response.
+
+    Readings exist only on ten-minute boundaries. Measurement fields are
+    nullable: `null` means the station has no such sensor (or did not report
+    it), which is distinct from the field being absent.
+
+    There is no authentication. The only rate limit is an edge rule against
+    runaway clients: 50 requests every 10 seconds per IP address, after which
+    the edge answers 429 for ten seconds.
+
+    出典：気象庁ホームページを加工して作成（編集責任：tenkinow）
+    Data is used under the Public Data License v1.0 (公共データ利用規約第1.0版),
+    which is compatible with CC BY 4.0.
+
+    **Disclaimer.** This is an unofficial mirror, not a JMA product and not
+    endorsed by JMA. Everything here is *observed* data; no forecasts are
+    produced or redistributed. JMA may delay, gap, change or withdraw the
+    upstream feed without notice, and this service may therefore serve stale or
+    incomplete data or stop entirely. Provided as is, with no warranty and no
+    liability, with no uptime commitment; rate limits and endpoints may change
+    without notice. Do not use it for safety-critical decisions. For official
+    warnings and forecasts, use https://www.jma.go.jp/ .
+  license:
+    name: Public Data License v1.0 (公共データ利用規約第1.0版)
+    url: https://www.digital.go.jp/resources/open_data/public_data_license_v1.0
+
+externalDocs:
+  description: Source code
+  url: https://github.com/desmondhiew00/jma-weather-api
+
+servers:
+  - url: https://api.tenkinow.com
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /v1/weather/latest:
+    get:
+      operationId: getLatest
+      summary: Latest observation
+      x-summary-ja: 最新の観測値
+      description: |
+        The newest stored observation from the station nearest the coordinate.
+        No freshness policy is applied: `observed_at` is always returned so the
+        caller can judge staleness itself.
+      x-ja: |
+        指定した座標にもっとも近い観測所の、保存されている最新の観測値。
+        鮮度による絞り込みは行いません。`observed_at` を必ず返すので、
+        値が古いかどうかは呼び出し側で判断できます。
+      parameters:
+        - $ref: "#/components/parameters/Lat"
+        - $ref: "#/components/parameters/Lon"
+      responses:
+        "200":
+          description: The newest observation for the nearest station.
+          x-ja: 最寄り観測所の最新の観測値。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [coordinate, station, observation, attribution]
+                properties:
+                  coordinate:
+                    $ref: "#/components/schemas/Coordinate"
+                  station:
+                    $ref: "#/components/schemas/Station"
+                  observation:
+                    $ref: "#/components/schemas/Observation"
+                  attribution:
+                    $ref: "#/components/schemas/Attribution"
+              example:
+                coordinate:
+                  lat: 35.69
+                  lon: 139.7
+                  source: query
+                station:
+                  id: "44132"
+                  name: 東京
+                  name_en: Tokyo
+                  lat: 35.69167
+                  lon: 139.75
+                  altitude_m: 25
+                  distance_km: 4.53
+                observation:
+                  observed_at: "2026-09-12T01:20:00Z"
+                  temp_c: 27.4
+                  humidity_pct: 71
+                  pressure_hpa: 1008.2
+                  wind_ms: 3.1
+                  wind_direction_deg: 180
+                  precipitation_10m_mm: 0
+                  precipitation_1h_mm: 0
+                  precipitation_3h_mm: 0
+                  precipitation_24h_mm: 1.5
+                  sun_10m_min: 10
+                  sun_1h_h: 0.9
+                  snow_cm: null
+                  visibility_m: 20000
+                attribution:
+                  publisher: Japan Meteorological Agency
+                  url: https://www.jma.go.jp/
+                  notice_ja: 出典：気象庁ホームページを加工して作成（編集責任：tenkinow）
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /v1/weather/history:
+    get:
+      operationId: getHistory
+      summary: Observations over a time range
+      x-summary-ja: 期間内の観測値
+      description: |
+        Every retained observation for the nearest station between `from` and
+        `to`, oldest first.
+
+        A `from` older than the retention window is silently clamped to the
+        earliest retained instant rather than rejected; the echoed `from` and
+        `retention_days` explain the shortfall.
+      x-ja: |
+        最寄り観測所について、`from` から `to` までに保持されている観測値を
+        古い順にすべて返します。
+
+        保持期間より前の `from` はエラーにせず、保持されている最初の時刻まで
+        切り上げます。実際に使われた `from` と `retention_days` を返すので、
+        期間が縮んだ理由はレスポンスから分かります。
+      parameters:
+        - $ref: "#/components/parameters/Lat"
+        - $ref: "#/components/parameters/Lon"
+        - name: from
+          in: query
+          required: true
+          description: Start of the range, RFC 3339. Clamped to the retention window.
+          x-ja: 期間の開始時刻（RFC 3339）。保持期間の範囲に切り上げられます。
+          schema:
+            type: string
+            format: date-time
+          example: "2026-09-12T00:00:00Z"
+        - name: to
+          in: query
+          required: true
+          description: End of the range, RFC 3339. Must not be before `from`.
+          x-ja: 期間の終了時刻（RFC 3339）。`from` より前は指定できません。
+          schema:
+            type: string
+            format: date-time
+          example: "2026-09-12T06:00:00Z"
+      responses:
+        "200":
+          description: The observations retained in the range. `count` may be 0.
+          x-ja: 期間内に保持されている観測値。`count` が 0 になることもあります。
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    coordinate,
+                    station,
+                    from,
+                    to,
+                    retention_days,
+                    count,
+                    observations,
+                    attribution,
+                  ]
+                properties:
+                  coordinate:
+                    $ref: "#/components/schemas/Coordinate"
+                  station:
+                    $ref: "#/components/schemas/Station"
+                  from:
+                    type: string
+                    format: date-time
+                    description: The effective start, after clamping to retention.
+                  to:
+                    type: string
+                    format: date-time
+                  retention_days:
+                    type: integer
+                    description: How many days of history this deployment keeps.
+                    example: 7
+                  count:
+                    type: integer
+                    description: Length of `observations`.
+                  observations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Observation"
+                  attribution:
+                    $ref: "#/components/schemas/Attribution"
+              example:
+                coordinate:
+                  lat: 35.69
+                  lon: 139.7
+                  source: query
+                station:
+                  id: "44132"
+                  name: 東京
+                  name_en: Tokyo
+                  lat: 35.69167
+                  lon: 139.75
+                  altitude_m: 25
+                  distance_km: 4.53
+                from: "2026-09-12T00:00:00Z"
+                to: "2026-09-12T00:20:00Z"
+                retention_days: 30
+                count: 2
+                observations:
+                  - observed_at: "2026-09-12T00:00:00Z"
+                    temp_c: 26.1
+                    humidity_pct: 78
+                    pressure_hpa: 1007.9
+                    wind_ms: 2.4
+                    wind_direction_deg: 200
+                    precipitation_10m_mm: 0
+                    precipitation_1h_mm: 0
+                    precipitation_3h_mm: 0
+                    precipitation_24h_mm: 1.5
+                    sun_10m_min: 0
+                    sun_1h_h: 0
+                    snow_cm: null
+                    visibility_m: 15000
+                  - observed_at: "2026-09-12T00:10:00Z"
+                    temp_c: 26.4
+                    humidity_pct: 77
+                    pressure_hpa: 1008
+                    wind_ms: 2.6
+                    wind_direction_deg: 190
+                    precipitation_10m_mm: 0
+                    precipitation_1h_mm: 0
+                    precipitation_3h_mm: 0
+                    precipitation_24h_mm: 1.5
+                    sun_10m_min: 2
+                    sun_1h_h: 0.1
+                    snow_cm: null
+                    visibility_m: 17000
+                attribution:
+                  publisher: Japan Meteorological Agency
+                  url: https://www.jma.go.jp/
+                  notice_ja: 出典：気象庁ホームページを加工して作成（編集責任：tenkinow）
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /v1/weather/at:
+    get:
+      operationId: getAt
+      summary: Observation at a point in time
+      x-summary-ja: 指定時刻の観測値
+      description: |
+        The reading current at `at` for the nearest station.
+
+        `at` is floored to the enclosing ten-minute boundary, never rounded up:
+        the reading current at 14:23 is the one from 14:20. If nothing was
+        stored for that boundary, the preceding 30 minutes are searched; beyond
+        that the station was down and the answer is 404.
+
+        Both the requested instant and the reading's own `observed_at` are
+        returned so any gap between them is visible.
+      x-ja: |
+        最寄り観測所について、`at` の時点で有効だった観測値。
+
+        `at` は切り上げずに、直前の10分境界へ切り下げます。14:23 時点の値は
+        14:20 の観測値です。その境界に値がない場合は直前の30分をさかのぼって
+        探し、それでも無ければ観測所が停止していたとみなして 404 を返します。
+
+        指定した時刻と、その観測値自身の `observed_at` をどちらも返すため、
+        両者のずれはレスポンスから分かります。
+      parameters:
+        - $ref: "#/components/parameters/Lat"
+        - $ref: "#/components/parameters/Lon"
+        - name: at
+          in: query
+          required: true
+          description: The instant of interest, RFC 3339. Floored to a ten-minute boundary.
+          x-ja: 対象の時刻（RFC 3339）。10分境界に切り下げられます。
+          schema:
+            type: string
+            format: date-time
+          example: "2026-09-12T01:23:00Z"
+      responses:
+        "200":
+          description: The reading current at the requested instant.
+          x-ja: 指定した時刻に有効だった観測値。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [coordinate, station, requested_at, observation, attribution]
+                properties:
+                  coordinate:
+                    $ref: "#/components/schemas/Coordinate"
+                  station:
+                    $ref: "#/components/schemas/Station"
+                  requested_at:
+                    type: string
+                    format: date-time
+                    description: The `at` value as parsed, in UTC.
+                  observation:
+                    $ref: "#/components/schemas/Observation"
+                  attribution:
+                    $ref: "#/components/schemas/Attribution"
+              example:
+                coordinate:
+                  lat: 35.69
+                  lon: 139.7
+                  source: query
+                station:
+                  id: "44132"
+                  name: 東京
+                  name_en: Tokyo
+                  lat: 35.69167
+                  lon: 139.75
+                  altitude_m: 25
+                  distance_km: 4.53
+                requested_at: "2026-09-12T01:23:00Z"
+                observation:
+                  observed_at: "2026-09-12T01:20:00Z"
+                  temp_c: 27.4
+                  humidity_pct: 71
+                  pressure_hpa: 1008.2
+                  wind_ms: 3.1
+                  wind_direction_deg: 180
+                  precipitation_10m_mm: 0
+                  precipitation_1h_mm: 0
+                  precipitation_3h_mm: 0
+                  precipitation_24h_mm: 1.5
+                  sun_10m_min: 10
+                  sun_1h_h: 0.9
+                  snow_cm: null
+                  visibility_m: 20000
+                attribution:
+                  publisher: Japan Meteorological Agency
+                  url: https://www.jma.go.jp/
+                  notice_ja: 出典：気象庁ホームページを加工して作成（編集責任：tenkinow）
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /v1/weather/now:
+    get:
+      operationId: getNow
+      summary: Every reporting station, right now
+      x-summary-ja: 報告中の全観測所の現在値
+      description: |
+        One reading per station: the newest each one has, for the whole AMeDAS
+        network in a single response. Intended for maps and dashboards that need
+        the country at a glance rather than one point.
+
+        A station whose newest reading is more than 30 minutes old is left out
+        entirely rather than returned with a stale value, so `count` varies
+        between calls. Stations report on their own schedule, so the entries do
+        not share one timestamp. Each carries its own `observed_at`, and the
+        top-level `observed_at` is the newest among them.
+
+        No coordinate is involved, so entries carry no `distance_km`.
+      x-ja: |
+        アメダス全観測所について、それぞれの最新の観測値を1つずつ、
+        1回のレスポンスで返します。1地点ではなく日本全体を一度に見たい
+        地図やダッシュボード向けです。
+
+        最新の観測値が30分より古い観測所は、古い値を返さずに除外します。
+        そのため `count` は呼び出しごとに変動します。観測所ごとに報告の
+        タイミングが異なるので時刻は揃っておらず、各エントリが自分の
+        `observed_at` を持ち、トップレベルの `observed_at` はその中で
+        もっとも新しいものです。
+
+        座標を指定しないため、各エントリに `distance_km` はありません。
+      responses:
+        "200":
+          description: The current state of every reporting station.
+          x-ja: 報告中の全観測所の現在の状態。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [observed_at, count, stations, attribution]
+                properties:
+                  observed_at:
+                    type: [string, "null"]
+                    format: date-time
+                    description: The newest reading in the snapshot; null when no station reported.
+                  count:
+                    type: integer
+                    description: How many stations are in this response.
+                    example: 1287
+                  stations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/NowStation"
+                  attribution:
+                    $ref: "#/components/schemas/Attribution"
+              example:
+                observed_at: "2026-09-12T01:20:00Z"
+                count: 1287
+                stations:
+                  - id: "44132"
+                    name: 東京
+                    name_en: Tokyo
+                    lat: 35.69167
+                    lon: 139.75
+                    altitude_m: 25
+                    observation:
+                      observed_at: "2026-09-12T01:20:00Z"
+                      temp_c: 27.4
+                      humidity_pct: 71
+                      pressure_hpa: 1008.2
+                      wind_ms: 3.1
+                      wind_direction_deg: 180
+                      precipitation_10m_mm: 0
+                      precipitation_1h_mm: 0
+                      precipitation_3h_mm: 0
+                      precipitation_24h_mm: 1.5
+                      sun_10m_min: 10
+                      sun_1h_h: 0.9
+                      snow_cm: null
+                      visibility_m: 20000
+                attribution:
+                  publisher: Japan Meteorological Agency
+                  url: https://www.jma.go.jp/
+                  notice_ja: 出典：気象庁ホームページを加工して作成（編集責任：tenkinow）
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+components:
+  parameters:
+    Lat:
+      name: lat
+      in: query
+      required: false
+      description: |
+        Latitude in decimal degrees. Omit together with `lon` to use the
+        location the edge derives from the request's IP address; the response
+        says which was used.
+      x-ja: |
+        緯度（十進度）。`lon` とあわせて省略すると、リクエスト元のIPアドレスから
+        エッジが推定した位置を使います。どちらを使ったかはレスポンスに入ります。
+      schema:
+        type: number
+        format: double
+        minimum: -90
+        maximum: 90
+      example: 35.69
+    Lon:
+      name: lon
+      in: query
+      required: false
+      description: |
+        Longitude in decimal degrees. Omit together with `lat` to use the
+        location the edge derives from the request's IP address.
+      x-ja: |
+        経度（十進度）。`lat` とあわせて省略すると、リクエスト元のIPアドレスから
+        エッジが推定した位置を使います。
+      schema:
+        type: number
+        format: double
+        minimum: -180
+        maximum: 180
+      example: 139.7
+
+  responses:
+    BadRequest:
+      description: |
+        A parameter is missing or malformed: absent `lat`/`lon`, a
+        non-numeric or out-of-range coordinate, a timestamp that is not
+        RFC 3339, or a `to` earlier than `from`.
+      x-ja: |
+        パラメータが不足しているか不正です。`lat`/`lon` の欠落、数値でない
+        座標や範囲外の座標、RFC 3339 でない時刻、`from` より前の `to` など。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: lat must be between -90 and 90
+    NotFound:
+      description: |
+        No station within the service radius of the coordinate (this is how
+        points outside Japan are rejected), or no observation retained for the
+        requested station and time.
+      x-ja: |
+        座標から対応半径内に観測所がありません（日本国外の地点はこれで弾かれます）。
+        または、その観測所・時刻の観測値が保持されていません。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: no station within 100 km of that coordinate (nearest is 812 km away)
+    InternalError:
+      description: Something failed server-side. The detail is in the server log, not here.
+      x-ja: サーバ側で処理に失敗しました。詳細はレスポンスではなくサーバログにあります。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: internal error
+    Unavailable:
+      description: The station list has not loaded yet, so no coordinate can be resolved.
+      x-ja: 観測所一覧が未読み込みのため、座標を解決できません。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: station list unavailable
+
+  schemas:
+    Attribution:
+      type: object
+      description: |
+        Required credit to JMA under PDL1.0, including the mandatory note that
+        the data was reshaped and by whom. Present on every successful
+        response; redistribute it with the data.
+      x-ja: |
+        PDL1.0 に定められた気象庁への出典表示です。加工したこととその責任者を
+        示す必須の注記を含みます。成功した全レスポンスに入ります。データを
+        再配布するときはこれもともに配布してください。
+      required: [publisher, url, notice_ja]
+      properties:
+        publisher:
+          type: string
+          description: The body that published the underlying observations.
+          x-ja: もとの観測値を公表している機関。
+          example: Japan Meteorological Agency
+        url:
+          type: string
+          description: The publisher's site.
+          x-ja: 公表機関のサイト。
+          example: https://www.jma.go.jp/
+        notice_ja:
+          type: string
+          description: The Japanese credit line PDL1.0 requires, verbatim.
+          x-ja: PDL1.0 が求める出典表示の文言（日本語、そのまま）。
+          example: 出典：気象庁ホームページを加工して作成（編集責任：tenkinow）
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: A human-readable message. Not a stable machine-readable code.
+          x-ja: 人間向けのメッセージ。機械可読な安定コードではありません。
+
+    Coordinate:
+      type: object
+      description: |
+        The coordinate the answer was computed from, and where it came from.
+
+        `query` means the caller sent `lat` and `lon`. `network` means they were
+        omitted and the coordinate came from the edge's IP geolocation, which is
+        city-accurate at best and wrong behind a VPN or a distant mobile carrier
+        gateway. The station and its `distance_km` are still exact, measured
+        from an approximate starting point.
+      x-ja: |
+        回答の計算に使った座標と、その出どころ。
+
+        `query` は呼び出し側が `lat`/`lon` を送った場合。`network` は省略され、
+        エッジのIP位置情報を使った場合で、精度は市区町村程度、VPNや遠方の
+        携帯キャリアのゲートウェイ経由では外れます。観測所と `distance_km` 自体は
+        正確で、単に起点がおおまかなだけです。
+      required: [lat, lon, source]
+      properties:
+        lat:
+          type: number
+          format: double
+          example: 35.69
+        lon:
+          type: number
+          format: double
+          example: 139.7
+        source:
+          type: string
+          enum: [query, network]
+          description: Whether the coordinate came from the query or from IP geolocation.
+          x-ja: 座標がクエリ由来か、IP位置情報由来かを示します。
+          example: query
+
+    Station:
+      type: object
+      description: |
+        The station the coordinate resolved to. Readings are this station's,
+        not the requested point's. `distance_km` is how far apart those are.
+      x-ja: |
+        座標から解決された観測所。観測値は指定地点そのものではなくこの観測所のもので、
+        両者の隔たりが `distance_km` です。
+      required: [id, name, name_en, lat, lon, altitude_m, distance_km]
+      properties:
+        id:
+          type: string
+          description: JMA station number.
+          x-ja: 気象庁の観測所番号。
+          example: "44132"
+        name:
+          type: string
+          description: Station name in Japanese.
+          x-ja: 観測所名（日本語）。
+          example: 東京
+        name_en:
+          type: string
+          description: Station name romanised.
+          x-ja: 観測所名（ローマ字）。
+          example: Tokyo
+        lat:
+          type: number
+          format: double
+          description: Station latitude, 5 decimal places.
+          x-ja: 観測所の緯度（小数第5位まで）。
+          example: 35.69167
+        lon:
+          type: number
+          format: double
+          description: Station longitude, 5 decimal places.
+          x-ja: 観測所の経度（小数第5位まで）。
+          example: 139.75
+        altitude_m:
+          type: [integer, "null"]
+          description: Station elevation in metres, or null if JMA does not publish one.
+          x-ja: 観測所の標高（m）。気象庁が公表していない場合は null。
+          example: 25
+        distance_km:
+          type: number
+          format: double
+          description: Great-circle distance from the requested coordinate, 2 decimal places.
+          x-ja: 指定座標からの大円距離（小数第2位まで）。
+          example: 4.53
+
+    NowStation:
+      type: object
+      description: |
+        A station in the all-stations snapshot, with its own newest reading.
+        There is no `distance_km`: no coordinate was asked for.
+      x-ja: |
+        全観測所スナップショット内の1観測所と、その最新の観測値。座標を指定しないため
+        `distance_km` はありません。
+      required: [id, name, name_en, lat, lon, altitude_m, observation]
+      properties:
+        id:
+          type: string
+          description: JMA station number.
+          x-ja: 気象庁の観測所番号。
+          example: "44132"
+        name:
+          type: string
+          description: Station name in Japanese.
+          x-ja: 観測所名（日本語）。
+          example: 東京
+        name_en:
+          type: string
+          description: Station name romanised.
+          x-ja: 観測所名（ローマ字）。
+          example: Tokyo
+        lat:
+          type: number
+          format: double
+          description: Station latitude, 5 decimal places.
+          x-ja: 観測所の緯度（小数第5位まで）。
+          example: 35.69167
+        lon:
+          type: number
+          format: double
+          description: Station longitude, 5 decimal places.
+          x-ja: 観測所の経度（小数第5位まで）。
+          example: 139.75
+        altitude_m:
+          type: [integer, "null"]
+          description: Station elevation in metres, or null if JMA does not publish one.
+          x-ja: 観測所の標高（m）。気象庁が公表していない場合は null。
+          example: 25
+        observation:
+          $ref: "#/components/schemas/Observation"
+
+    Observation:
+      type: object
+      description: |
+        One ten-minute reading. Every measurement is nullable: null means the
+        station has no such sensor or did not report it, and is never a
+        substitute for zero.
+      x-ja: |
+        10分ごとの観測値1件。各測定値は null になり得ます。null はその観測所に
+        センサーが無いか報告しなかったことを表し、0 の代わりではありません。
+      required:
+        - observed_at
+        - temp_c
+        - humidity_pct
+        - pressure_hpa
+        - wind_ms
+        - wind_direction_deg
+        - precipitation_10m_mm
+        - precipitation_1h_mm
+        - precipitation_3h_mm
+        - precipitation_24h_mm
+        - sun_10m_min
+        - sun_1h_h
+        - snow_cm
+        - visibility_m
+      properties:
+        observed_at:
+          type: string
+          format: date-time
+          description: When the reading was taken, UTC, on a ten-minute boundary.
+          x-ja: 観測時刻（UTC、10分境界）。
+          example: "2026-09-12T01:20:00Z"
+        temp_c:
+          type: [number, "null"]
+          description: Air temperature, °C.
+          x-ja: 気温（℃）。
+          example: 27.4
+        humidity_pct:
+          type: [number, "null"]
+          description: Relative humidity, percent.
+          x-ja: 相対湿度（%）。
+          example: 71
+        pressure_hpa:
+          type: [number, "null"]
+          description: Sea-level pressure, hPa.
+          x-ja: 海面気圧（hPa）。
+          example: 1008.2
+        wind_ms:
+          type: [number, "null"]
+          description: Wind speed, m/s.
+          x-ja: 風速（m/s）。
+          example: 3.1
+        wind_direction_deg:
+          type: [number, "null"]
+          description: Wind direction in degrees clockwise from north, the direction the wind blows from.
+          x-ja: 風向（北から時計回りの角度）。風が吹いてくる方向。
+          example: 180
+        precipitation_10m_mm:
+          type: [number, "null"]
+          description: Precipitation over the preceding 10 minutes, mm.
+          x-ja: 直前10分間の降水量（mm）。
+          example: 0
+        precipitation_1h_mm:
+          type: [number, "null"]
+          description: Precipitation over the preceding hour, mm.
+          x-ja: 直前1時間の降水量（mm）。
+          example: 0
+        precipitation_3h_mm:
+          type: [number, "null"]
+          description: Precipitation over the preceding 3 hours, mm.
+          x-ja: 直前3時間の降水量（mm）。
+          example: 0
+        precipitation_24h_mm:
+          type: [number, "null"]
+          description: Precipitation over the preceding 24 hours, mm.
+          x-ja: 直前24時間の降水量（mm）。
+          example: 1.5
+        sun_10m_min:
+          type: [number, "null"]
+          description: Sunshine during the preceding 10 minutes, minutes.
+          x-ja: 直前10分間の日照時間（分）。
+          example: 10
+        sun_1h_h:
+          type: [number, "null"]
+          description: Sunshine during the preceding hour, hours.
+          x-ja: 直前1時間の日照時間（時間）。
+          example: 0.9
+        snow_cm:
+          type: [number, "null"]
+          description: Snow depth on the ground, cm.
+          x-ja: 積雪深（cm）。
+          example: null
+        visibility_m:
+          type: [number, "null"]
+          description: Horizontal visibility, metres.
+          x-ja: 水平視程（m）。
+          example: 20000

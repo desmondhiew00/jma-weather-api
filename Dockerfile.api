@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+
+# Dependencies first so a code-only change reuses the module cache.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY . .
+
+# The production host is x86; builds run on arm64 laptops and amd64 CI runners
+# alike, so the target is pinned rather than inherited from the builder.
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG GIT_SHA=dev
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
+
+FROM gcr.io/distroless/static:nonroot
+COPY --from=build /out/api /api
+USER nonroot:nonroot
+ENV TZ=UTC
+ENTRYPOINT ["/api"]

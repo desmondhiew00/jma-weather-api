@@ -1,0 +1,30 @@
+# Cloudflare terminates public TLS and this origin serves a Cloudflare Origin CA
+# certificate, so there is no ACME here at all. Cloudflare's SSL mode must be
+# "Full (strict)" for the cert to be validated rather than merely accepted.
+
+# The site address comes from API_HOSTNAME so one Caddyfile serves both
+# origins: the Singapore box answers for api.tenkinow.com, the Tokyo box for
+# api-tokyo.tenkinow.com. Each box sets it in /srv/tenkinow/.env, which is
+# where per-box configuration already lives.
+{$API_HOSTNAME:api.tenkinow.com} {
+	tls /etc/caddy/origin.pem /etc/caddy/origin-key.pem
+
+	encode zstd gzip
+
+	# Caddy forwards X-Forwarded-For itself. Nothing in this stack reads the
+	# client IP, so trusted_proxies (a global `servers` option, not a site
+	# directive) is deliberately not configured.
+	reverse_proxy api:8080
+
+	# Access logs go to a bind-mounted file rather than stdout so retention is
+	# time-based (docker's json-file driver only caps by size). JSON because
+	# these lines are read back with jq to count requests per endpoint.
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100mb
+			roll_keep 50
+			roll_keep_for 2160h
+		}
+		format json
+	}
+}

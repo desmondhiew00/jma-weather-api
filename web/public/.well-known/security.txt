@@ -1,0 +1,8 @@
+# https://securitytxt.org — RFC 9116.
+# tenkinow is an unauthenticated read-only API. There is no user data to
+# breach; reports about the origin, the edge rules, or the published site are
+# still welcome.
+Contact: mailto:security@tenkinow.com
+Expires: 2027-09-12T00:00:00.000Z
+Preferred-Languages: en, ja
+Canonical: https://tenkinow.com/.well-known/security.txt

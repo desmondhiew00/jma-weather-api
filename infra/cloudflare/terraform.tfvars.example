@@ -1,0 +1,12 @@
+# Zone-wide Cloudflare configuration. The server and its DNS record live in
+# infra/hetzner. Copy to terraform.tfvars (gitignored) or pass with -var.
+cloudflare_api_token  = ""
+cloudflare_zone_id    = ""
+cloudflare_account_id = ""
+
+# api_hostname = "api.tenkinow.com"   # only used to derive the Worker route
+# r2_bucket    = "tenkinow-backups"
+
+# Where contact@ and security@ forward to. Verify this address under
+# Cloudflare > Email > Email Routing > Destination addresses before applying.
+contact_forward_to = "you@example.com"

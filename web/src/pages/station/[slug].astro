@@ -1,0 +1,12 @@
+---
+import StationPage from '../../components/station-page.astro';
+import stations from '../../data/stations.json';
+
+export function getStaticPaths() {
+  return stations.map((station) => ({ params: { slug: station.slug }, props: { station } }));
+}
+
+const { station } = Astro.props;
+---
+
+<StationPage lang="en" station={station} />

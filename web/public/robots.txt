@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tenkinow.com/sitemap-index.xml
+
+# Structured summary for LLM agents: https://llmstxt.org
+# Sitemap above is authoritative for crawlers.

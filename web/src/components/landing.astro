@@ -1,0 +1,256 @@
+---
+import Base from '../layouts/base.astro';
+import Hero from './hero.jsx';
+import { t } from '../lib/i18n.js';
+
+const { lang = 'en' } = Astro.props;
+const s = t(lang).home;
+const docsUrl = lang === 'ja' ? 'https://tenkinow.com/ja/docs' : 'https://tenkinow.com/docs';
+
+const PDL = 'https://www.digital.go.jp/resources/open_data/public_data_license_v1.0';
+
+// Three JSON-LD nodes for this page, each aimed at a different consumer.
+//
+// WebAPI is what a developer-facing crawler wants; the endpoints are declared as
+// EntryPoints rather than the SearchActions they used to be, which are for site
+// search boxes and were being ignored.
+//
+// Dataset matters most: this is observational data with a spatial and temporal
+// extent and a named licence, which is what Google Dataset Search indexes. A
+// page describing itself only as an API never appears there.
+//
+// FAQPage is the same six questions the section below renders. Answer engines
+// quote them verbatim, so they are written to be quotable on their own.
+const jsonLd = [
+  {
+    '@type': 'WebAPI',
+    name: '天気Now',
+    description: s.description,
+    inLanguage: lang,
+    url: lang === 'ja' ? 'https://tenkinow.com/ja' : 'https://tenkinow.com/',
+    documentation: docsUrl,
+    provider: { '@id': 'https://tenkinow.com/#org' },
+    isBasedOn: 'https://www.jma.go.jp/',
+    license: PDL,
+    potentialAction: s.endpoints.map((e) => ({
+      '@type': 'Action',
+      name: e.path,
+      description: e.blurb,
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `https://api.tenkinow.com${e.path}?${e.params
+          .split(', ')
+          .map((k) => `${k}={${k}}`)
+          .join('&')}`,
+        httpMethod: 'GET',
+        contentType: 'application/json',
+      },
+    })),
+  },
+  {
+    '@type': 'Dataset',
+    '@id': 'https://tenkinow.com/#dataset',
+    name:
+      lang === 'ja'
+        ? '気象庁アメダス観測値（10分値、直近30日）'
+        : 'JMA AMeDAS weather observations for Japan (ten-minute, rolling 30 days)',
+    description: s.lede,
+    inLanguage: lang,
+    url: lang === 'ja' ? 'https://tenkinow.com/ja' : 'https://tenkinow.com/',
+    license: PDL,
+    isAccessibleForFree: true,
+    creator: {
+      '@type': 'Organization',
+      name: 'Japan Meteorological Agency',
+      url: 'https://www.jma.go.jp/',
+    },
+    provider: { '@id': 'https://tenkinow.com/#org' },
+    keywords: [
+      'weather',
+      'observations',
+      'Japan',
+      'AMeDAS',
+      'アメダス',
+      '気象庁',
+      'JMA',
+      'temperature',
+      'precipitation',
+      'wind',
+    ],
+    temporalCoverage: 'P30D',
+    // Japan's bounding box, as minLat minLon maxLat maxLon.
+    spatialCoverage: {
+      '@type': 'Place',
+      name: 'Japan',
+      geo: { '@type': 'GeoShape', box: '24.0 122.9 45.6 153.99' },
+    },
+    variableMeasured: [
+      'temp_c',
+      'humidity_pct',
+      'pressure_hpa',
+      'wind_ms',
+      'wind_direction_deg',
+      'precipitation_1h_mm',
+      'sun_1h_h',
+      'snow_cm',
+    ],
+    distribution: [
+      {
+        '@type': 'DataDownload',
+        encodingFormat: 'application/json',
+        contentUrl: 'https://api.tenkinow.com/v1/weather/now',
+        name: 'Every reporting station, newest reading',
+      },
+      {
+        '@type': 'DataDownload',
+        encodingFormat: 'application/yaml',
+        contentUrl: 'https://api.tenkinow.com/v1/openapi.yaml',
+        name: 'OpenAPI 3.1 description of the API',
+      },
+    ],
+  },
+  {
+    '@type': 'FAQPage',
+    mainEntity: s.faq.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  },
+];
+const curl = "curl -s 'https://api.tenkinow.com/v1/weather/latest?lat=35.69&lon=139.70'";
+const response = `{
+  "station": {
+    "id": "44132",
+    "name": "東京",
+    "name_en": "Tokyo",
+    "lat": 35.69167,
+    "lon": 139.75,
+    "altitude_m": 25,
+    "distance_km": 4.52
+  },
+  "observation": {
+    "observed_at": "2026-09-12T04:30:00Z",
+    "temp_c": 23.4,
+    "humidity_pct": 86,
+    "pressure_hpa": 1018.6,
+    "wind_ms": 2.1,
+    "wind_direction_deg": 22.5,
+    "precipitation_1h_mm": 0,
+    "sun_1h_h": 0,
+    "snow_cm": null
+  },
+  "attribution": {
+    "publisher": "Japan Meteorological Agency",
+    "url": "https://www.jma.go.jp/",
+    "notice_ja": "出典：気象庁ホームページを加工して作成（編集責任：tenkinow）"
+  }
+}`;
+---
+
+<Base lang={lang} title={s.title} description={s.description} jsonLd={jsonLd}>
+  <main id="main">
+    <!-- Rendered to HTML at build time and hydrated on load, so the h1 and lede
+         are in the markup a crawler sees. -->
+    <Hero lang={lang} client:load />
+
+    <!-- The page has to say, plainly, that the thing behind the readout is an
+         API: the endpoints it exposes, what a call looks like, and the terms of
+         use that matter to someone deciding whether to build on it. -->
+    <section class="wrap mt-[var(--section-gap)]">
+      <h2 class="max-w-[16ch]">{s.apiH2}</h2>
+      <p class="mt-5 text-neutral">{s.apiLede}</p>
+
+      <div class="mt-12 grid items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <!-- min-w-0: without it the grid track is sized by the unwrappable curl
+             line below, which pushes the whole page past a phone viewport. -->
+        <div class="min-w-0">
+          <p class="label m-0">{s.apiEndpoints}</p>
+          <dl class="mt-5 grid gap-0">
+            {s.endpoints.map((e, i) => (
+              <div class:list={['grid gap-y-1 py-5', i > 0 && 'border-t border-rule']}>
+                <dt class="m-0 flex flex-wrap items-baseline gap-x-2">
+                  <span class="mono rounded-full bg-accent-wash px-2 py-0.5 text-[0.62rem] tracking-[0.1em] text-accent uppercase">
+                    GET
+                  </span>
+                  <code class="text-[0.92rem] text-ink">{e.path}</code>
+                </dt>
+                <dd class="m-0 text-[0.88rem] text-neutral">{e.blurb}</dd>
+                <dd class="mono m-0 text-[0.74rem] text-muted">{e.params}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div class="min-w-0">
+          <p class="label m-0">{s.apiExample}</p>
+          <div class="panel mt-5 overflow-hidden">
+            <div class="border-b border-rule px-5 py-3">
+              <code class="mono block overflow-x-auto text-[0.78rem] whitespace-pre text-ink">
+                {curl}
+              </code>
+            </div>
+            <pre
+              class="mono m-0 max-h-[26rem] overflow-auto p-5 text-[0.78rem] leading-[1.7] text-ink-2"
+              tabindex="0"
+            >{response}</pre>
+          </div>
+          <p class="mt-3 mb-0 text-[0.78rem] text-muted">{s.apiTrimmed}</p>
+        </div>
+      </div>
+
+      <dl class="mt-14 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+        {s.facts.map((f) => (
+          <div class="border-t border-rule pt-4">
+            <dt class="font-display text-[1.05rem] leading-tight font-bold tracking-[-0.02em] text-ink">
+              {f.k}
+            </dt>
+            <dd class="m-0 mt-2 text-[0.86rem] text-neutral">{f.v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+
+    <!-- The same six answers as the FAQPage node above. They are on the page
+         because a claim only in structured data is a claim no reader can check,
+         and <details> keeps six of them from burying the CTA. The answers are in
+         the markup either way, open or closed. -->
+    <section class="wrap mt-[var(--section-gap)]">
+      <h2 class="max-w-[20ch]">{s.faqH2}</h2>
+      <div class="mt-10 max-w-[64ch]">
+        {s.faq.map((f, i) => (
+          <details
+            class:list={['group border-rule py-5', i > 0 ? 'border-t' : 'border-t']}
+            open={i === 0}
+          >
+            <summary class="flex cursor-pointer list-none items-baseline gap-3 font-display text-[1.02rem] leading-snug font-bold tracking-[-0.02em] text-ink marker:content-none [&::-webkit-details-marker]:hidden">
+              <span
+                class="mt-[0.15em] flex-none text-accent transition-transform duration-200 ease-out group-open:rotate-90"
+                aria-hidden="true"
+              >
+                &#8250;
+              </span>
+              <span>{f.q}</span>
+            </summary>
+            <p class="mt-3 mb-0 pl-[1.4rem] text-[0.94rem] text-neutral">{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <section class="wrap mt-[var(--section-gap)]">
+      <div class="tint px-6 py-10 sm:px-12 sm:py-14">
+        <p class="max-w-[58ch] text-[1.05rem] text-ink-2">{s.conventions}</p>
+
+        <div class="mt-8 flex flex-wrap items-center gap-x-7 gap-y-4">
+          <a class="btn" href={lang === 'ja' ? '/ja/playground' : '/playground'}>
+            {s.tryIt}&#160;<span aria-hidden="true">&#8594;</span>
+          </a>
+          <a class="link-cta" href={lang === 'ja' ? '/ja/docs' : '/docs'}>
+            {s.readRef}&#160;<span aria-hidden="true">&#8594;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+</Base>

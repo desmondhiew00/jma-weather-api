@@ -1,0 +1,49 @@
+---
+import Base from '../layouts/base.astro';
+import { t } from '../lib/i18n.js';
+import stations from '../data/stations.json';
+
+const { lang = 'en' } = Astro.props;
+const s = t(lang).station;
+const ja = lang === 'ja';
+const path = (p: string) => (ja ? `/ja${p}` : p);
+
+// An ItemList rather than 1,286 loose links: it tells a crawler these are one
+// collection with an order, which is also what makes the list worth having as a
+// page instead of leaving the station URLs to the sitemap alone.
+const jsonLd = {
+  '@type': 'ItemList',
+  name: s.indexTitle,
+  numberOfItems: stations.length,
+  itemListOrder: 'https://schema.org/ItemListOrderAscending',
+};
+---
+
+<Base lang={lang} title={s.indexTitle} description={s.indexDescription} jsonLd={jsonLd}>
+  <main class="wrap pt-[clamp(2.5rem,6vw,4.5rem)]" id="main">
+    <div class="max-w-[46rem]">
+      <h1>
+        {s.indexH1[0]}
+        <br />
+        <span class="h-quiet">{s.indexH1[1]}</span>
+      </h1>
+      <p class="mt-6 text-neutral">{s.indexLede(stations.length.toLocaleString('en-US'))}</p>
+    </div>
+
+    <!-- Plain columns, not a table: the only column that carries meaning is the
+         name, and 1,286 rows of one cell is a list. -->
+    <ul class="mt-12 grid list-none grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-x-8 gap-y-1 p-0 text-[0.88rem] [@media(pointer:coarse)]:gap-y-0">
+      {stations.map((st) => (
+        <li class="m-0 truncate">
+          {/* A finger needs the row to be a row, not a line of text. */}
+          <a
+            class="block truncate text-neutral no-underline hover:text-ink [@media(pointer:coarse)]:py-1.5"
+            href={path(`/station/${st.slug}`)}
+          >
+            {ja ? st.name : st.name_en}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </main>
+</Base>

@@ -1,0 +1,33 @@
+---
+import Base from '../layouts/base.astro';
+import RequestBuilder from './request-builder.jsx';
+import { t } from '../lib/i18n.js';
+
+const { lang = 'en' } = Astro.props;
+const s = t(lang).pg;
+---
+
+<Base
+  lang={lang}
+  title={s.title}
+  description={s.description}
+  jsonLd={{
+    '@type': 'WebApplication',
+    name: s.h2,
+    applicationCategory: 'DeveloperApplication',
+    description: s.description,
+    inLanguage: lang,
+    operatingSystem: 'Any browser',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'JPY' },
+  }}
+>
+  <main class="wrap pt-[clamp(2.5rem,6vw,4.5rem)]" id="main">
+    <div class="max-w-[46rem]">
+      <h1>{s.h2}</h1>
+      <p class="mt-6 text-neutral">{s.lede}</p>
+    </div>
+
+    <div class="mt-12"></div>
+    <RequestBuilder lang={lang} client:load />
+  </main>
+</Base>

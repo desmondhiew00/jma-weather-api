@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2026-09-12",
+    "macrostructure": "Stat-Led (marketing) + Split Studio (app)",
+    "theme": "custom",
+    "theme_axes": "light / geometric-humanist-sans / warm",
+    "vibe": "pale sky, floating cloud, soft weather",
+    "nav": "N5 floating pill",
+    "footer": "Ft4 dense colophon",
+    "enrichment": "none — typography + live data",
+    "brief": "tenkinow web — full redesign after together.ai (palette, floating nav) and nutlope/hallmark `studio` (structure); rounded + soft"
+  },
+  {
+    "date": "2026-09-12",
+    "macrostructure": "Workbench (preserved)",
+    "theme": "custom",
+    "theme_axes": "dark / rounded-sans / cool",
+    "vibe": "JMA instrument panel, night shift",
+    "enrichment": "none — typography + live data",
+    "brief": "tenkinow web — UX refactor: touch support, heading order, skip link, 8-state buttons, token extraction"
+  }
+]

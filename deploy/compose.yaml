@@ -1,0 +1,110 @@
+# Production topology for the Hetzner box.
+#
+# Only Caddy publishes ports. Postgres has no `ports:` entry at all: the other
+# services reach it over this network by name, so it is never exposed to the
+# internet regardless of the host firewall.
+name: tenkinow
+
+x-logging: &logging
+  # Docker's json-file driver has no default size limit, so unrotated logs
+  # would eventually fill the disk and take Postgres down with them.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      API_HOSTNAME: ${API_HOSTNAME:-api.tenkinow.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./origin.pem:/etc/caddy/origin.pem:ro
+      - ./origin-key.pem:/etc/caddy/origin-key.pem:ro
+      - caddy-data:/data
+      - ./logs:/var/log/caddy
+    depends_on:
+      api:
+        condition: service_started
+    logging: *logging
+
+  api:
+    image: ghcr.io/desmondhiew00/jma-weather-api-api:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      GIT_SHA: ${TAG:-latest}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MAX_STATION_DISTANCE_KM: ${MAX_STATION_DISTANCE_KM:-100}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      STALENESS_THRESHOLD: ${STALENESS_THRESHOLD:-30m}
+      TZ: UTC
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  worker:
+    image: ghcr.io/desmondhiew00/jma-weather-api-worker:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      GIT_SHA: ${TAG:-latest}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      POLL_INTERVAL: ${POLL_INTERVAL:-5m}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      JMA_BASE_URL: ${JMA_BASE_URL:-https://www.jma.go.jp}
+      TZ: UTC
+    depends_on:
+      # The worker applies migrations at startup, so it must not race Postgres
+      # initialisation: without this gate it dies and restart-loops on boot.
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    # Bound to the host loopback only, so it stays off the internet (and off the
+    # docker0 bridge) but is reachable through an SSH tunnel for admin access.
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: weather
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: weather
+    # Defaults assume far more RAM than a 2 GB box has. This host cannot serve
+    # 100 connections; the real limit is the pgx pools.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - max_connections=25
+    volumes:
+      # A bind mount, not a named volume: one tar from a backup, visible in
+      # `ls`, and safe from an over-enthusiastic `docker system prune`.
+      #
+      # Mounted at /var/lib/postgresql, not .../data: postgres:18 places the
+      # cluster in a version subdirectory and refuses the older layout.
+      - /var/lib/tenkinow/pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weather -d weather"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+volumes:
+  caddy-data:

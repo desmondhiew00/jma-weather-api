@@ -1,0 +1,45 @@
+# tenkinow
+
+> Free, unauthenticated JSON API for Japanese weather observations. Resolves a
+> coordinate to the nearest JMA AMeDAS station and returns that station's
+> reading. Observed data only, no forecasts.
+
+Source data is the Japan Meteorological Agency's AMeDAS network (~1,286
+automated stations), polled every five minutes and kept for 30 days. Readings
+exist only on ten-minute boundaries. Measurement fields are nullable: `null`
+means the station has no such sensor, which is distinct from the field being
+absent. Responses are RFC3339 UTC and units live in the field names.
+
+Readings are not interpolated. Every response names the station it resolved
+to and how far away that station was. A coordinate 40 km from the nearest
+station gets that station's reading as-is.
+
+No API key, no account, no SDK. A coordinate more than 100 km from any station
+returns 404 (offshore or outside Japan).
+
+## API
+
+- [Reference](https://api.tenkinow.com/v1/docs): full interactive documentation
+- [OpenAPI spec](https://api.tenkinow.com/v1/openapi.yaml): machine-readable, OpenAPI 3.1
+- [Latest reading](https://api.tenkinow.com/v1/weather/latest?lat=35.69&lon=139.70): newest observation for the nearest station
+- [History](https://api.tenkinow.com/v1/weather/history?lat=35.69&lon=139.70&from=2026-09-11T00:00:00Z&to=2026-09-11T06:00:00Z): every reading in a range, clamped to the 30-day retention window
+- [Point in time](https://api.tenkinow.com/v1/weather/at?lat=35.69&lon=139.70&at=2026-09-11T14:23:00Z): the reading current at an instant, floored to its ten-minute bucket
+- [Whole network](https://api.tenkinow.com/v1/weather/now): every reporting station's newest reading, for maps
+- [Health](https://api.tenkinow.com/healthz): 503 once ingestion has stalled past its staleness threshold
+
+## Site
+
+- [Home](https://tenkinow.com/): what the service is, the endpoints in brief, and the six questions people ask first
+- [Reference](https://tenkinow.com/docs): every endpoint, query parameter, response field and error, rendered from the OpenAPI spec
+- [Playground](https://tenkinow.com/playground): build a request and see the response. Accepts ?lat= and ?lon=
+- [Map](https://tenkinow.com/map): the station network, live
+- [Stations](https://tenkinow.com/station): all 1,286 stations, each with its own page giving coordinates, altitude, station id and its nearest neighbours
+- [日本語](https://tenkinow.com/ja/): the same site in Japanese
+- [Source code](https://github.com/desmondhiew00/jma-weather-api): the API, worker, infra and this site, MIT licensed
+
+## Licence and limits
+
+- 出典：気象庁ホームページ (https://www.jma.go.jp/) を加工して作成（編集責任：tenkinow）
+- Data is used under the Public Data License v1.0 (公共データ利用規約第1.0版), which is compatible with CC BY 4.0. Redistribute the attribution with the data.
+- Unofficial. Not a JMA product and not endorsed by JMA. The upstream feed may lag, gap, change or stop without notice, so this service may serve stale or incomplete data, or none at all. Provided as is, with no warranty. Not for safety-critical use. For official warnings and forecasts, use https://www.jma.go.jp/.
+- Contact: contact@tenkinow.com

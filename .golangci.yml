@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus
+  # four aimed at this codebase's actual failure modes: unclosed JMA response
+  # bodies, unchecked rows.Err(), and errors.Is/As misuse in the 404 paths.
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - rowserrcheck
+    - sqlclosecheck
+    - wsl_v5
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt

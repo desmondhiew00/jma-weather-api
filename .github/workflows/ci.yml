@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GO_VERSION: "1.27.1"
+  NODE_VERSION: "24"
+  PNPM_VERSION: "12"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
+
+      # sqlc's version is pinned by the go tool directive in go.mod, so this
+      # catches generated code that has drifted from query.sql, which a pinned
+      # version alone does not prevent.
+      - name: sqlc diff
+        run: go tool sqlc diff
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+
+      # Repository tests start their own Postgres via testcontainers, which
+      # needs the runner's Docker socket and no service container.
+      - name: test
+        run: go test ./... -timeout 600s
+
+  images:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        binary: [api, worker]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The Makefile deploys `git rev-parse --short HEAD`, so the short form
+      # must exist as a tag too or `make deploy` resolves nothing.
+      - id: vars
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Both images carry the same commit SHA so a deploy can prove the API and
+      # the worker came from one commit.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.binary }}
+          platforms: linux/amd64
+          push: true
+          build-args: GIT_SHA=${{ steps.vars.outputs.short_sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/jma-weather-api-${{ matrix.binary }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/jma-weather-api-${{ matrix.binary }}:${{ steps.vars.outputs.short_sha }}
+            ghcr.io/${{ github.repository_owner }}/jma-weather-api-${{ matrix.binary }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Checks and builds the site on every push and pull request. Deploying is a
+  # separate, manual workflow. Independent of the Go jobs: it is a static build
+  # served by Pages and nothing in it is produced by the API's toolchain.
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: install
+        run: pnpm --dir web install --frozen-lockfile
+
+      - name: typecheck
+        run: pnpm --dir web run typecheck
+
+      - name: test
+        run: pnpm --dir web test
+
+      # web/.env is gitignored, so the Maps key has to come from a secret or the
+      # map page builds with an empty key and fails silently in the browser.
+      # Written to the same file the local build reads, so CI and a laptop
+      # produce identical output; PUBLIC_API_BASE comes from the committed
+      # .env.production either way.
+      - name: build
+        run: |
+          printf 'GOOGLE_MAP_API=%s\n' "$GOOGLE_MAP_API" > web/.env
+          pnpm --dir web run build
+        env:
+          GOOGLE_MAP_API: ${{ secrets.GOOGLE_MAP_API }}

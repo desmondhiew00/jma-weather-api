@@ -1,0 +1,46 @@
+---
+// Without this file Cloudflare Pages answers every unknown path with the
+// homepage at HTTP 200. That soft 404 hands a crawler an unbounded supply
+// of duplicate URLs all canonicalising somewhere else. A real 404.html makes the
+// same paths answer 404. Pages walks up the directory tree for the closest
+// 404.html, so /ja/404.html is what a bad /ja/* path gets.
+import Base from '../layouts/base.astro';
+import { t } from '../lib/i18n.js';
+
+const { lang = 'en' } = Astro.props;
+const s = t(lang);
+const path = (p: string) => (lang === 'ja' ? `/ja${p}` : p);
+const routes = [
+  { href: path('/'), label: s.nav.overview, blurb: s.home.description },
+  { href: path('/docs'), label: s.nav.reference, blurb: s.docs.description },
+  { href: path('/playground'), label: s.nav.playground, blurb: s.pg.description },
+  { href: path('/map'), label: s.nav.map, blurb: s.map.description },
+  { href: path('/station'), label: s.station.all, blurb: s.station.indexDescription },
+];
+---
+
+<Base lang={lang} title={s.nf.title} description={s.nf.description} noindex>
+  <main class="wrap pt-[clamp(2.5rem,6vw,4.5rem)]" id="main">
+    <div class="max-w-[46rem]">
+      <h1>
+        {s.nf.h1[0]}
+        <br />
+        <span class="h-quiet">{s.nf.h1[1]}</span>
+      </h1>
+      <p class="mt-6 text-neutral">{s.nf.lede}</p>
+    </div>
+
+    <dl class="mt-12 grid max-w-[64rem] gap-0">
+      {routes.map((r) => (
+        <div class="grid gap-y-1 border-t border-rule py-5">
+          <dt class="m-0">
+            <a class="link-cta text-[1.02rem]" href={r.href}>
+              {r.label}&#160;<span aria-hidden="true">&#8594;</span>
+            </a>
+          </dt>
+          <dd class="m-0 max-w-[62ch] text-[0.88rem] text-neutral">{r.blurb}</dd>
+        </div>
+      ))}
+    </dl>
+  </main>
+</Base>

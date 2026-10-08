@@ -1,0 +1,103 @@
+name: Deploy
+
+# Manual only. CI builds and publishes images on every push to main, but
+# nothing reaches the box or Pages until someone asks for it here.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to deploy
+        type: choice
+        default: both
+        options: [both, api, web]
+      tag:
+        description: "Image tag to deploy (default: short SHA of the selected ref)"
+        type: string
+        default: ""
+
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "12"
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    if: inputs.target == 'both' || inputs.target == 'api'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # SSH_KNOWN_HOSTS is a secret rather than an ssh-keyscan at run time:
+      # scanning trusts whatever answers, which is the check being skipped.
+      # Regenerate it whenever the box is rebuilt (ssh-keyscan <ip>).
+      - name: ssh setup
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+
+      # API_HOSTNAME is passed explicitly: its default reads a Terraform output,
+      # which cannot resolve here, and an empty value makes `make deploy` skip
+      # its /healthz check and report success without verifying anything.
+      - name: deploy
+        run: |
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="${GITHUB_SHA::7}"
+          echo "deploying $TAG"
+          make deploy \
+            SERVER=root@${{ secrets.SSH_HOST }} \
+            API_HOSTNAME=${{ vars.API_HOSTNAME || 'api.tenkinow.com' }} \
+            TAG="$TAG"
+        env:
+          SSH_KEY: ~/.ssh/id_ed25519
+
+      - name: purge cache
+        run: make purge
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+
+  web:
+    if: inputs.target == 'both' || inputs.target == 'web'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: install
+        run: pnpm --dir web install --frozen-lockfile
+
+      # web/.env is gitignored, so the Maps key has to come from a secret or the
+      # map page builds with an empty key and fails silently in the browser.
+      # Written to the same file the local build reads, so CI and a laptop
+      # produce identical output; PUBLIC_API_BASE comes from the committed
+      # .env.production either way.
+      - name: build
+        run: |
+          printf 'GOOGLE_MAP_API=%s\n' "$GOOGLE_MAP_API" > web/.env
+          pnpm --dir web run build
+        env:
+          GOOGLE_MAP_API: ${{ secrets.GOOGLE_MAP_API }}
+
+      - name: deploy to pages
+        run: |
+          npx --yes wrangler@latest pages deploy web/dist \
+            --project-name=tenkinow-web --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

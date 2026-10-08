@@ -1,0 +1,110 @@
+---
+import Base from '../layouts/base.astro';
+import StationReading from './station-reading.jsx';
+import { t } from '../lib/i18n.js';
+
+const { lang = 'en', station } = Astro.props;
+type Near = (typeof station.near)[number];
+const s = t(lang).station;
+const st = station;
+const ja = lang === 'ja';
+const path = (p: string) => (ja ? `/ja${p}` : p);
+
+// The coordinate is the page's whole reason to exist as a URL, so the example is
+// built from it rather than from a fixed city.
+const curl = `curl -s 'https://api.tenkinow.com/v1/weather/latest?lat=${st.lat}&lon=${st.lon}'`;
+
+// A station is a Place that a weather observation dataset covers. Naming the
+// coordinate in the graph is what lets a "weather station near X" query resolve
+// here at all; without geo this is an untyped page about a word.
+const jsonLd = {
+  '@type': 'Place',
+  '@id': `https://tenkinow.com${path(`/station/${st.slug}`)}#place`,
+  name: ja ? st.name : st.name_en,
+  alternateName: ja ? st.name_en : st.name,
+  identifier: st.id,
+  description: s.description(st),
+  elevation: `${st.altitude_m} m`,
+  geo: { '@type': 'GeoCoordinates', latitude: st.lat, longitude: st.lon },
+  additionalType: 'https://schema.org/Observatory',
+  subjectOf: { '@id': 'https://tenkinow.com/#dataset' },
+};
+---
+
+<Base lang={lang} title={s.title(st)} description={s.description(st)} jsonLd={jsonLd}>
+  <main class="wrap pt-[clamp(2.5rem,6vw,4.5rem)]" id="main">
+    <div class="max-w-[46rem]">
+      <p class="label m-0">{s.kicker}</p>
+      <h1 class="mt-3">
+        {ja ? st.name : st.name_en}
+        <br />
+        <span class="h-quiet">{ja ? st.name_en : st.name}</span>
+      </h1>
+      <p class="mt-6 text-neutral">{s.lede(st)}</p>
+    </div>
+
+    <div class="mt-12 grid items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <StationReading lang={lang} lat={st.lat} lon={st.lon} client:load />
+
+      <dl class="grid gap-0">
+        {[
+          [s.id, st.id],
+          [s.coord, `${st.lat}, ${st.lon}`],
+          [s.alt, `${st.altitude_m} m`],
+        ].map(([k, v], i) => (
+          <div
+            class:list={[
+              'flex flex-wrap items-baseline gap-x-4 py-4',
+              i > 0 && 'border-t border-rule',
+            ]}
+          >
+            <dt class="label m-0 min-w-[9rem]">{k}</dt>
+            <dd class="mono m-0 text-[0.98rem] text-ink">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+
+    <section class="mt-[var(--section-gap)]">
+      <h2 class="max-w-[20ch]">{s.callH2}</h2>
+      <div class="panel mt-6 max-w-[64rem] overflow-hidden">
+        <code class="mono block overflow-x-auto px-5 py-4 text-[0.78rem] whitespace-pre text-ink">
+          {curl}
+        </code>
+      </div>
+      <p class="mt-4 max-w-[62ch] text-[0.86rem] text-neutral">{s.callNote}</p>
+      <div class="mt-7 flex flex-wrap items-center gap-x-7 gap-y-4">
+        <a class="btn" href={`${path('/playground')}?lat=${st.lat}&lon=${st.lon}`}>
+          {s.tryIt}&#160;<span aria-hidden="true">&#8594;</span>
+        </a>
+        <a class="link-cta" href={path('/map')}>
+          {s.onMap}&#160;<span aria-hidden="true">&#8594;</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- The three nearest stations. They are the reason no two of these pages are
+         the same page, and they give a crawler a path from any station into the
+         rest of the network rather than only back to the index. -->
+    <section class="mt-[var(--section-gap)]">
+      <h2 class="max-w-[20ch]">{s.nearH2}</h2>
+      <dl class="mt-8 grid max-w-[64rem] gap-x-10 gap-y-0 sm:grid-cols-3">
+        {st.near.map((n: Near) => (
+          <div class="border-t border-rule py-5">
+            <dt class="m-0">
+              <a class="link-cta text-[1.02rem]" href={path(`/station/${n.slug}`)}>
+                {ja ? n.name : n.name_en}
+              </a>
+            </dt>
+            <dd class="mono m-0 mt-1.5 text-[0.78rem] text-muted">{s.away(n.km)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p class="mt-8 mb-0">
+        <a class="link-cta" href={path('/station')}>
+          {s.all}&#160;<span aria-hidden="true">&#8594;</span>
+        </a>
+      </p>
+    </section>
+  </main>
+</Base>

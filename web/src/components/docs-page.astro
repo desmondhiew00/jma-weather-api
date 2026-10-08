@@ -1,0 +1,233 @@
+---
+import { readFileSync } from 'node:fs';
+import { parse } from 'yaml';
+import Base from '../layouts/base.astro';
+import { t } from '../lib/i18n.js';
+
+const { lang = 'en' } = Astro.props;
+const s = t(lang).docs;
+
+// The spec the binary embeds and serves, read straight off disk at build time.
+// Generating this page from anything else would let the reference drift from the
+// API; reading the same file means a spec change ships the doc change with it.
+//
+// Japanese prose lives in the spec too, as `x-ja` (and `x-summary-ja`) siblings
+// of the English `description` and `summary`. Keeping the translation beside the
+// thing it translates means one file to edit when the API changes; a message
+// catalogue over here would drift the moment someone touched only the spec.
+// Anything with no `x-ja` yet falls back to English rather than going blank.
+const spec: any = parse(
+  readFileSync(new URL('../../../internal/api/openapi.yaml', import.meta.url), 'utf8'),
+);
+
+/** Follow a local $ref. The spec has no external refs and no cycles. */
+const deref = (node: any): any => {
+  if (!node || typeof node !== 'object') return node;
+  if (!node.$ref) return node;
+  return deref(
+    node.$ref
+      .replace(/^#\//, '')
+      .split('/')
+      .reduce((o: any, k: string) => o[k], spec),
+  );
+};
+
+/** `type: [number, "null"]` reads as `number | null`. */
+const typeOf = (schema: any = {}) => {
+  const base = [].concat(schema.type ?? 'object').join(' | ');
+  return schema.format ? `${base} · ${schema.format}` : base;
+};
+
+/** Japanese prose from the spec's `x-ja`, falling back to English. */
+const desc = (n: any = {}) => (lang === 'ja' && n['x-ja']) || n.description || '';
+const summary = (n: any = {}) => (lang === 'ja' && n['x-summary-ja']) || n.summary || '';
+
+const first = (text: string = '') => text.trim().split('\n\n')[0].replace(/\n/g, ' ');
+
+/** Split prose on `inline code`, odd indices being the code runs. */
+const code = (text: string = '') => text.replace(/\n/g, ' ').split('`');
+
+const endpoints = Object.entries(spec.paths).map(([path, item]: [string, any]) => {
+  const op = item.get;
+  return {
+    path,
+    id: op.operationId,
+    summary: summary(op),
+    description: desc(op),
+    params: (op.parameters ?? []).map(deref).map((p: any) => ({
+      name: p.name,
+      required: !!p.required,
+      type: typeOf(p.schema),
+      description: desc(p),
+      example: p.example ?? p.schema?.example,
+    })),
+    responses: Object.entries(op.responses).map(([code, r]: [string, any]) => ({
+      code,
+      description: desc(deref(r)),
+    })),
+  };
+});
+
+// Only the schemas that describe returned data.
+const SHOWN = ['Station', 'Observation', 'Coordinate', 'NowStation', 'Attribution', 'Error'];
+const schemas = SHOWN.filter((n) => spec.components.schemas[n]).map((name) => {
+  const sc = spec.components.schemas[name];
+  const required = new Set(sc.required ?? []);
+  return {
+    name,
+    description: first(desc(sc)),
+    fields: Object.entries(sc.properties ?? {}).map(([field, raw]: [string, any]) => {
+      const f = deref(raw);
+      return {
+        field,
+        type: f.type === 'array' ? s.arrayOf(typeOf(deref(f.items))) : typeOf(f),
+        required: required.has(field),
+        description: desc(f),
+      };
+    }),
+  };
+});
+
+const jsonLd = {
+  '@type': 'TechArticle',
+  headline: s.title,
+  description: s.description,
+  inLanguage: lang,
+  about: { '@id': 'https://tenkinow.com/#dataset' },
+  articleSection: endpoints.map((e) => e.path),
+};
+---
+
+<Base lang={lang} title={s.title} description={s.description} jsonLd={jsonLd}>
+  <main class="wrap pt-[clamp(2.5rem,6vw,4.5rem)]" id="main">
+    <div class="max-w-[46rem]">
+      <h1>
+        {s.h1[0]}
+        <br />
+        <span class="h-quiet">{s.h1[1]}</span>
+      </h1>
+      <p class="mt-6 text-neutral">{s.lede}</p>
+      <p class="mt-7 mb-0 flex flex-wrap items-center gap-x-7 gap-y-3 text-[0.88rem]">
+        <a class="link-cta" href="https://api.tenkinow.com/v1/docs">
+          {s.interactive}&#160;<span aria-hidden="true">&#8594;</span>
+        </a>
+        <a class="link-cta" href="https://api.tenkinow.com/v1/openapi.yaml">
+          {s.spec}&#160;<span aria-hidden="true">&#8594;</span>
+        </a>
+      </p>
+    </div>
+
+    {endpoints.map((e) => (
+      <section class="mt-[var(--section-gap)]" id={e.id}>
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <span class="mono rounded-full bg-accent-wash px-2 py-0.5 text-[0.62rem] tracking-[0.1em] text-accent uppercase">
+            GET
+          </span>
+          <code class="mono text-[1.02rem] text-ink">{e.path}</code>
+        </div>
+        <h2 class="mt-4 max-w-[24ch]">{e.summary}</h2>
+        {e.description
+          .trim()
+          .split('\n\n')
+          .map((para: string) => (
+            <p class="mt-4 text-neutral">
+              {code(para).map((run, i) =>
+                i % 2 ? <code class="text-[0.92em] text-ink">{run}</code> : run,
+              )}
+            </p>
+          ))}
+
+        <p class="label mt-9 mb-0">{s.params}</p>
+        {e.params.length === 0 ? (
+          <p class="mt-3 text-[0.88rem] text-neutral">{s.noParams}</p>
+        ) : (
+          <dl class="mt-4 grid max-w-[70rem] gap-0">
+            {e.params.map((p: any) => (
+              <div class="grid gap-y-1 border-t border-rule py-4">
+                <dt class="m-0 flex flex-wrap items-baseline gap-x-3">
+                  <code class="mono text-[0.92rem] text-ink">{p.name}</code>
+                  <span class="mono text-[0.72rem] text-muted">{p.type}</span>
+                  <span
+                    class:list={[
+                      'mono text-[0.68rem] tracking-[0.08em] uppercase',
+                      p.required ? 'text-accent' : 'text-muted',
+                    ]}
+                  >
+                    {p.required ? s.required : s.optional}
+                  </span>
+                </dt>
+                <dd class="m-0 max-w-[62ch] text-[0.86rem] text-neutral">
+                  {code(p.description).map((run, i) =>
+                    i % 2 ? <code class="text-[0.92em] text-ink">{run}</code> : run,
+                  )}
+                </dd>
+                {p.example !== undefined && (
+                  <dd class="mono m-0 text-[0.74rem] text-muted">{s.eg(String(p.example))}</dd>
+                )}
+              </div>
+            ))}
+          </dl>
+        )}
+
+        <p class="label mt-9 mb-0">{s.responses}</p>
+        <dl class="mt-4 grid max-w-[70rem] gap-0">
+          {e.responses.map((r) => (
+            <div class="flex flex-wrap items-baseline gap-x-5 border-t border-rule py-3">
+              <dt class="mono m-0 min-w-[3rem] text-[0.92rem] text-ink">{r.code}</dt>
+              <dd class="m-0 max-w-[62ch] text-[0.86rem] text-neutral">
+                {code(r.description).map((run, i) =>
+                  i % 2 ? <code class="text-[0.92em] text-ink">{run}</code> : run,
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    ))}
+
+    <section class="mt-[var(--section-gap)]" id="limits">
+      <h2 class="max-w-[20ch]">{s.limitsH2}</h2>
+      {s.limits.map((para: string) => (
+        <p class="mt-4 max-w-[62ch] text-neutral">
+          {code(para).map((run, i) =>
+            i % 2 ? <code class="text-[0.92em] text-ink">{run}</code> : run,
+          )}
+        </p>
+      ))}
+    </section>
+
+    <section class="mt-[var(--section-gap)]" id="fields">
+      <h2 class="max-w-[20ch]">{s.schemas}</h2>
+      {schemas.map((sc) => (
+        <div class="mt-12">
+          <h3 class="mono text-[1rem] text-ink">{sc.name}</h3>
+          {sc.description && (
+            <p class="mt-2 max-w-[62ch] text-[0.88rem] text-neutral">{sc.description}</p>
+          )}
+          <dl class="mt-5 grid max-w-[70rem] gap-0">
+            {sc.fields.map((f) => (
+              <div class="grid gap-y-1 border-t border-rule py-3.5">
+                <dt class="m-0 flex flex-wrap items-baseline gap-x-3">
+                  <code class="mono text-[0.9rem] text-ink">{f.field}</code>
+                  <span class="mono text-[0.72rem] text-muted">{f.type}</span>
+                  {!f.required && (
+                    <span class="mono text-[0.68rem] tracking-[0.08em] text-muted uppercase">
+                      {s.optional}
+                    </span>
+                  )}
+                </dt>
+                {f.description && (
+                  <dd class="m-0 max-w-[62ch] text-[0.86rem] text-neutral">
+                    {code(f.description).map((run, i) =>
+                      i % 2 ? <code class="text-[0.92em] text-ink">{run}</code> : run,
+                    )}
+                  </dd>
+                )}
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+    </section>
+  </main>
+</Base>

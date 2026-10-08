@@ -1,0 +1,98 @@
+/* Hallmark · tenkinow — Nimbus
+ * Portable token export. The site consumes these through Tailwind v4's @theme
+ * in src/styles/global.css; this file is the framework-free copy.
+ * Palette after together.ai; structure after nutlope/hallmark `studio`.
+ * axes: paper=light · display=geometric-humanist-sans · accent=warm
+ */
+:root {
+  /* Ground */
+  --color-paper: oklch(98% 0.004 240);
+  --color-paper-2: oklch(95.5% 0.008 242);
+  --color-paper-3: oklch(92% 0.012 245);
+  --color-card: oklch(99.4% 0.002 240);
+  --color-sky: oklch(96.5% 0.02 244);
+  --color-mist: oklch(95.5% 0.03 250);
+  --color-mist-2: oklch(96.5% 0.026 300);
+
+  /* Rules */
+  --color-rule: oklch(90% 0.01 240);
+  --color-rule-2: oklch(79% 0.016 245);
+
+  /* Ink */
+  --color-muted: oklch(52% 0.02 250);
+  --color-neutral: oklch(40% 0.026 250);
+  --color-ink-2: oklch(28% 0.03 252);
+  --color-ink: oklch(18% 0.034 255);
+
+  /* Accent: together.ai's #fc4c02 at the lightness that clears 4.5:1 both ways */
+  --color-accent: oklch(54% 0.192 40);
+  --color-accent-hi: oklch(47% 0.18 38);
+  --color-accent-wash: oklch(95% 0.042 52);
+  --color-accent-ink: oklch(99.4% 0.002 240);
+  --color-focus: oklch(54% 0.192 40);
+  --color-good: oklch(50% 0.115 160);
+  --color-warn: oklch(52% 0.14 62);
+
+  /* Type */
+  --font-display: 'Plus Jakarta Sans', 'Zen Kaku Gothic New', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Geist', 'Zen Kaku Gothic New', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --display-weight: 700;
+  --display-style: normal;
+  --tracking-display: -0.03em;
+  --tracking-label: 0.1em;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1.0625rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+  --text-display: clamp(2.05rem, 3.2vw + 0.7rem, 3.25rem);
+  --text-display-s: clamp(1.6rem, 2vw + 0.9rem, 2.3rem);
+  --text-figure: clamp(4rem, 11vw, 7.5rem);
+
+  --lh-tight: 1.08;
+  --lh-snug: 1.3;
+  --lh-normal: 1.65;
+
+  /* Space: 4pt scale */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+  --space-3xl: 7rem;
+
+  --section-gap: clamp(4rem, 9vw, 7rem);
+  --page-max: 74rem;
+  --page-gutter: clamp(1rem, 4vw, 2.5rem);
+  --nav-height: 4.75rem;
+  --measure: 62ch;
+
+  /* Shape: together.ai's 4/8/12/16 scale */
+  --rule-hair: 1px;
+  --radius-sm: 8px;
+  --radius-input: 10px;
+  --radius-card: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  /* Depth: soft, wide, cool */
+  --shadow-cloud:
+    0 1px 2px oklch(30% 0.03 250 / 0.04), 0 10px 28px -14px oklch(30% 0.03 250 / 0.16);
+  --shadow-lift: 0 2px 4px oklch(30% 0.03 250 / 0.05), 0 22px 54px -22px oklch(30% 0.03 250 / 0.22);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 140ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+}

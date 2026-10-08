@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) or pass with -var.
+hcloud_token         = ""
+cloudflare_api_token = ""
+cloudflare_zone_id   = ""
+# Full one-line contents of a .pub file (never the private key):
+#   ssh-keygen -t ed25519 -C "tenkinow-server" -f ~/.ssh/tenkinow_ed25519
+ssh_public_key       = "ssh-ed25519 AAAA... tenkinow-server"
+
+# api_hostname = "api-sg.tenkinow.com"   # then api.tenkinow.com at cutover
+# location     = "sin"
+# server_type  = "cpx12"

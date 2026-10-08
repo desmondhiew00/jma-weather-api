@@ -1,0 +1,756 @@
+@import 'tailwindcss';
+
+/* Hallmark · genre: modern-minimal (soft register) · macrostructure: Stat-Led
+ * (marketing) + Split Studio (app) · theme: Nimbus
+ * palette after together.ai (brand orange #fc4c02 · lilac / cyan / sky pastels ·
+ * near-white ground · 4–16px radius scale), structure after nutlope/hallmark
+ * `studio` (cool-grey paper, Fraunces + Geist, soft card shadow).
+ * nav: N5 floating pill · footer: Ft4 colophon · enrichment: none
+ * axes: paper=light · display=high-contrast-serif · accent=warm
+ * pre-emit critique: P5 H5 E4 S5 R4 V4
+ *
+ * A cool near-white sky, soft sky tints for raised surfaces, generous corner
+ * radii, and one warm accent. The nav floats over the page rather than sitting
+ * on a rule.
+ *
+ * Every colour, face, easing and duration is a Tailwind theme token, so
+ * `bg-paper` and `text-accent` are the only way these values reach the markup.
+ * A raw colour below this block is a bug. The one exception is lib/map-scales.js,
+ * which paints to a canvas Tailwind cannot reach; its ramp mirrors these tokens
+ * by hand.
+ */
+@theme {
+  /* Ground: cool near-white, sky-tinted. Never pure white. */
+  --color-paper: oklch(98% 0.004 240);
+  --color-paper-2: oklch(95.5% 0.008 242);
+  --color-paper-3: oklch(92% 0.012 245);
+
+  /* Raised surfaces. `card` sits above the page; `mist` is the soft sky tint
+     that marks a section without drawing a box around it. */
+  --color-card: oklch(99.4% 0.002 240);
+  /* The sky wash the page opens under (together.ai's hero ground). Pale enough
+     that body copy sits on it at full contrast. */
+  --color-sky: oklch(96.5% 0.02 244);
+  --color-mist: oklch(95.5% 0.03 250);
+  --color-mist-2: oklch(96.5% 0.026 300); /* the lilac half of the pair */
+
+  /* The dark room. The live map is the one page read against a night ground:
+     the dots encode a measurement in hue, and hue only carries at full strength
+     on ink. Land, sea, and the surface an instrument panel floats on. */
+  --color-deep: oklch(24% 0.028 258);
+  --color-deep-2: oklch(18% 0.028 260);
+  --color-deep-3: oklch(31% 0.028 256);
+
+  /* Rules: softer and cooler than the ink, so a border never reads as a line
+     drawn in pen. */
+  --color-rule: oklch(90% 0.01 240);
+  --color-rule-2: oklch(79% 0.016 245);
+
+  /* Ink, four weights, walking toward together.ai's near-navy #010120. */
+  --color-muted: oklch(52% 0.02 250); /*  7.2:1 on paper: labels, units, help */
+  --color-neutral: oklch(40% 0.026 250); /* 11.3:1: secondary body */
+  --color-ink-2: oklch(28% 0.03 252); /* 15.1:1: running body */
+  --color-ink: oklch(18% 0.034 255); /* 18.4:1: display and primary */
+
+  /* The one accent: together.ai's brand orange, stepped down to the lightness
+     where it clears 4.5:1 in both directions (5.8:1 as text on paper and as
+     paper on it), so one value serves links, fills and focus rings.
+     Under 5% of any viewport. */
+  --color-accent: oklch(54% 0.192 40);
+  --color-accent-hi: oklch(47% 0.18 38);
+  --color-accent-wash: oklch(95% 0.042 52);
+
+  /* The accent as it has to be on a night ground: the 54% value falls under
+     4.5:1 there, so this is the same hue carried up in lightness. */
+  --color-accent-up: oklch(76% 0.145 46);
+
+  /* Status. Used sparingly; most feedback here is silent. */
+  --color-good: oklch(50% 0.115 160);
+  --color-warn: oklch(52% 0.14 62);
+
+  /* Type. Plus Jakarta Sans sets the display: a rounded humanist with open
+     counters and soft terminals, softer than the geometric sans together.ai
+     runs, so the page reads warm rather than technical.
+     Geist carries the body, Geist Mono every measurement. Japanese uses one
+     gothic across both roles, differentiated by weight, since a rounded display
+     gothic and a text gothic are the same family in practice. */
+  --font-display: 'Plus Jakarta Sans', 'Zen Kaku Gothic New', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Geist', 'Zen Kaku Gothic New', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --tracking-label: 0.1em;
+
+  /* Display scale. Named apart from Tailwind's text-* so the utility scale
+     survives untouched. */
+  --text-display: clamp(2.05rem, 3.2vw + 0.7rem, 3.25rem);
+  --text-display-s: clamp(1.6rem, 2vw + 0.9rem, 2.3rem);
+  --text-figure: clamp(4rem, 11vw, 7.5rem);
+
+  /* Rhythm */
+  --section-gap: clamp(4rem, 9vw, 7rem);
+  --page-max: 74rem;
+  --page-gutter: clamp(1rem, 4vw, 2.5rem);
+  --nav-height: 4.75rem; /* what the floating nav occupies before content */
+  /* The nav's full footprint: its top offset plus its own height. The map page
+     subtracts this from the viewport so the map fills exactly what is left. */
+  --nav-space: 4.75rem;
+
+  /* Shape: together.ai's 4 / 8 / 12 / 16 px scale. */
+  --radius-sm: 8px;
+  --radius-input: 10px;
+  --radius-card: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  /* Depth: two soft, wide, cool shadows. Nothing hard-edged. */
+  --shadow-cloud:
+    0 1px 2px oklch(30% 0.03 250 / 0.04), 0 10px 28px -14px oklch(30% 0.03 250 / 0.16);
+  --shadow-lift: 0 2px 4px oklch(30% 0.03 250 / 0.05), 0 22px 54px -22px oklch(30% 0.03 250 / 0.22);
+
+  /* Motion: three primitives, one easing family. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --animate-rise: rise 420ms var(--ease-out) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.4rem);
+    }
+  }
+}
+
+@layer base {
+  /* clip, never hidden: hidden would kill position:sticky in the playground. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    scroll-padding-top: calc(var(--nav-height) + 1rem);
+  }
+
+  /* The nav wraps to two rows below sm, so an anchored heading scrolled to the
+     one-row offset landed underneath it. */
+  @media (width < 40rem) {
+    html {
+      scroll-padding-top: 9rem; /* two rows, at touch-sized padding */
+    }
+  }
+
+  body {
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    color: var(--color-ink-2);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
+    padding-block-end: env(safe-area-inset-bottom);
+    background-image: linear-gradient(
+      180deg,
+      var(--color-sky) 0,
+      color-mix(in oklab, var(--color-sky) 40%, var(--color-paper)) 42vh,
+      var(--color-paper) 78vh
+    );
+    background-repeat: no-repeat;
+  }
+
+  ::selection {
+    background: var(--color-accent-wash);
+    color: var(--color-ink);
+  }
+
+  /* Display type is roman, always. Emphasis is carried by weight, the accent,
+     or a drawn underline, never by italicising a heading. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-style: normal;
+    color: var(--color-ink);
+    font-optical-sizing: auto;
+    /* Long compounds break inside the word rather than push the page wider
+       than a 320px viewport. */
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  h1,
+  h2 {
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  /* The two-tone headline: the statement in full ink, the line that completes
+     it in the accent. Colour carries the hierarchy instead of size, and the
+     accent clears 4.5:1, which the hairline grey it used to be did not. */
+  .h-quiet {
+    color: var(--color-accent);
+  }
+  h1 {
+    font-size: var(--text-display);
+  }
+  h2 {
+    font-size: var(--text-display-s);
+  }
+
+  h3 {
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    max-width: 62ch;
+  }
+
+  a {
+    color: var(--color-accent);
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in oklab, var(--color-accent) 35%, transparent);
+    text-underline-offset: 0.22em;
+    transition:
+      text-decoration-color 120ms var(--ease-out),
+      color 120ms var(--ease-out);
+  }
+  a:hover {
+    color: var(--color-accent-hi);
+    text-decoration-color: currentColor;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum';
+  }
+
+  label,
+  legend {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 0.4rem;
+  }
+
+  /* A legend sits in the gap it cuts in its fieldset's border. Without the
+     trailing padding the rule restarts hard against the last letter. */
+  legend {
+    padding-inline-end: 0.75rem;
+  }
+
+  /* Never animated: the ring must be there the instant focus lands. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Japanese sets without negative tracking and with more leading; kanji needs
+     the vertical room Latin lowercase does not. */
+  html[lang='ja'] body {
+    line-height: 1.9;
+    /* Two corrections the Latin pages do not need. Subpixel smoothing: macOS
+       `antialiased` thins CJK strokes badly, so kana set beside Geist's Latin on
+       the same line read a weight lighter than it. And 500 rather than 400,
+       because Zen Kaku Gothic New is a light-stemmed gothic whose regular is
+       under-set at the sizes the fine print uses. Both faces already load 500,
+       so this costs no extra bytes. */
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
+    font-weight: 500;
+  }
+  html[lang='ja'] :is(h1, h2) {
+    letter-spacing: 0.01em;
+    line-height: 1.45;
+    font-weight: 700;
+    /* Break Japanese headings at phrase boundaries where the browser can, so
+       「アメダス観測所」 does not split down the middle. */
+    word-break: auto-phrase;
+    line-break: strict;
+  }
+  html[lang='ja'] p {
+    max-width: 40em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    /* The one exception, and it has to live in this layer: an important
+       declaration in an earlier cascade layer beats a later one, so an override
+       from @layer components would lose to the rule above. */
+    .spinner {
+      animation-duration: 1.6s !important;
+    }
+  }
+}
+
+/* The shapes that repeat across every page. Everything else is utilities. */
+@layer components {
+  /* One page-wide measure. Everything hangs off the same left edge. */
+  .wrap {
+    margin-inline: auto;
+    width: 100%;
+    max-width: var(--page-max);
+    padding-inline: max(var(--page-gutter), env(safe-area-inset-left));
+  }
+
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .rule {
+    border: 0;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  /* ── The floating nav ──────────────────────────────────────────────────
+     Detached from every edge, rounded, translucent, blurred, and carrying the
+     softer of the two shadows so it sits just above the page rather than on it. */
+  .cloud {
+    border: 1px solid color-mix(in oklab, var(--color-rule) 55%, transparent);
+    border-radius: var(--radius-lg);
+    /* The no-blur fallback. Opaque enough that the nav is readable over the
+       map on its own, since without a backdrop-filter there is nothing
+       softening what sits behind it. */
+    background: color-mix(in oklab, var(--color-card) 90%, transparent);
+    box-shadow: var(--shadow-cloud);
+    transition:
+      box-shadow 220ms var(--ease-out),
+      background-color 220ms var(--ease-out);
+  }
+
+  /* Glass, where the browser can blur: the ground drops to half
+     opacity and the backdrop does the work instead. Saturation is lifted
+     because blurring washes colour out, and a white inner hairline along the
+     top edge gives the panel the lit edge that reads as glass rather than as
+     a faded card. */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .cloud {
+      background: color-mix(in oklab, var(--color-card) 52%, transparent);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      backdrop-filter: blur(20px) saturate(180%);
+      box-shadow:
+        var(--shadow-cloud),
+        inset 0 1px 0 color-mix(in oklab, white 65%, transparent);
+    }
+  }
+
+  /* ── Buttons: all eight states ─────────────────────────────────────────
+     default · hover · focus-visible · active · disabled · loading · error · success
+     `.is-*` mirrors each pseudo-class so a state can be forced for review. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.875rem; /* 46px, above the 44px WCAG floor */
+    font: 500 0.95rem/1 var(--font-body);
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    color: var(--color-card);
+    background: var(--color-accent);
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    padding: 0.8rem 1.4rem;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: var(--shadow-cloud);
+    transition:
+      background-color 140ms var(--ease-out),
+      box-shadow 140ms var(--ease-out),
+      transform 140ms var(--ease-out),
+      color 140ms var(--ease-out);
+
+    &:hover,
+    &.is-hover {
+      background: var(--color-accent-hi);
+      box-shadow: var(--shadow-lift);
+    }
+    &:active,
+    &.is-active {
+      transform: translateY(1px);
+      box-shadow: var(--shadow-cloud);
+    }
+    &:disabled,
+    &.is-disabled {
+      background: var(--color-paper-3);
+      color: var(--color-muted);
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
+    /* Loading keeps the accent so the button does not look switched off while
+       it is doing exactly what it was asked. The cursor carries the wait. */
+    &[data-state='loading'] {
+      cursor: progress;
+      background: color-mix(in oklab, var(--color-accent) 74%, var(--color-paper));
+      box-shadow: none;
+      transform: none;
+    }
+    &[data-state='error'] {
+      background: var(--color-warn);
+    }
+    &[data-state='success'] {
+      background: var(--color-good);
+    }
+  }
+
+  /* The secondary voice: a soft-filled pill. Mono, because it usually labels a
+     value (an endpoint name, a city, a mode) rather than an action. */
+  .chip {
+    display: flex;
+    align-items: center;
+    min-height: 2.375rem;
+    font: 400 0.8rem/1 var(--font-mono);
+    white-space: nowrap;
+    flex: none;
+    color: var(--color-neutral);
+    background: var(--color-card);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-pill);
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      border-color 140ms var(--ease-out),
+      color 140ms var(--ease-out),
+      background-color 140ms var(--ease-out),
+      transform 140ms var(--ease-out),
+      box-shadow 140ms var(--ease-out);
+
+    &:hover,
+    &.is-hover {
+      border-color: var(--color-rule-2);
+      color: var(--color-ink);
+      box-shadow: var(--shadow-cloud);
+    }
+    &:active,
+    &.is-active {
+      transform: translateY(1px);
+      box-shadow: none;
+    }
+
+    &[aria-pressed='true'] {
+      border-color: color-mix(in oklab, var(--color-accent) 45%, transparent);
+      color: var(--color-accent-hi);
+      background: var(--color-accent-wash);
+      box-shadow: none;
+    }
+
+    /* A disabled chip has to read as disabled next to a pressed one, so it
+       loses contrast in both directions rather than just fading. */
+    &:disabled,
+    &.is-disabled {
+      color: var(--color-rule-2);
+      border-color: var(--color-rule);
+      background: var(--color-paper-2);
+      box-shadow: none;
+      cursor: progress;
+      transform: none;
+    }
+    &[data-state='success'] {
+      border-color: var(--color-good);
+      color: var(--color-good);
+    }
+    &[data-state='error'] {
+      border-color: var(--color-warn);
+      color: var(--color-warn);
+    }
+
+    /* 38px is a comfortable mouse target and a mean finger one. A touch pointer
+       gets the full 44px without the whole page growing for a mouse. */
+    @media (pointer: coarse) {
+      min-height: 2.75rem;
+      padding-inline: 1rem;
+    }
+  }
+
+  /* A typographic CTA: a word, an arrow, a drawn underline.
+     The underline is a pseudo-element so it can grow from the left on hover
+     without the text shifting. */
+  .link-cta {
+    position: relative;
+    display: inline-block;
+    font-weight: 500;
+    color: var(--color-accent);
+    text-decoration: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      bottom: -2px;
+      height: 1px;
+      background: currentColor;
+      transform-origin: left;
+      transition: transform 220ms var(--ease-out);
+    }
+    &:hover {
+      color: var(--color-accent-hi);
+    }
+    &:hover::after {
+      animation: draw 260ms var(--ease-out);
+    }
+  }
+
+  @keyframes draw {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .field {
+    width: 100%;
+    min-height: 2.875rem;
+    font: 400 0.95rem/1.2 var(--font-mono);
+    color: var(--color-ink);
+    background: var(--color-card);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-input);
+    padding: 0.75rem 0.85rem;
+    transition:
+      border-color 140ms var(--ease-out),
+      box-shadow 140ms var(--ease-out);
+
+    &::placeholder {
+      color: var(--color-rule-2);
+    }
+    &:hover {
+      border-color: var(--color-rule-2);
+    }
+    &:focus {
+      border-color: color-mix(in oklab, var(--color-accent) 50%, transparent);
+    }
+    &[aria-invalid='true'] {
+      border-color: var(--color-warn);
+    }
+    &:disabled {
+      background: var(--color-paper-2);
+      color: var(--color-muted);
+      cursor: not-allowed;
+    }
+  }
+
+  /* A panel: a raised card on the page's ground, held up by light rather than
+     by a border. */
+  .panel {
+    background: var(--color-card);
+    border: 1px solid color-mix(in oklab, var(--color-rule) 80%, transparent);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-cloud);
+  }
+
+  /* An instrument: the panel as it is in the dark room. Same shape language as
+     .panel, inverted ground, and glass where the browser can blur, because it
+     floats over a live map rather than over paper. The controls inside it
+     invert with it: a white field on a night panel would outshine the dots. */
+  .instrument {
+    --edge: oklch(100% 0 0 / 0.12);
+    background: color-mix(in oklab, var(--color-deep-3) 92%, transparent);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-card);
+    box-shadow:
+      0 2px 6px oklch(12% 0.02 260 / 0.4),
+      0 26px 60px -26px oklch(8% 0.02 260 / 0.75);
+    color: var(--color-paper-2);
+
+    :is(label, legend, .label) {
+      color: oklch(74% 0.018 250);
+    }
+
+    .field {
+      background: oklch(100% 0 0 / 0.06);
+      border-color: var(--edge);
+      color: var(--color-paper);
+
+      &::placeholder {
+        color: oklch(64% 0.016 250);
+      }
+      &:hover {
+        border-color: oklch(100% 0 0 / 0.22);
+      }
+      &:focus {
+        border-color: color-mix(in oklab, var(--color-accent-up) 60%, transparent);
+      }
+    }
+
+    .chip {
+      background: oklch(100% 0 0 / 0.05);
+      border-color: var(--edge);
+      color: var(--color-paper-2);
+      box-shadow: none;
+
+      &:hover {
+        background: oklch(100% 0 0 / 0.1);
+        border-color: oklch(100% 0 0 / 0.26);
+        color: var(--color-paper);
+      }
+      &[aria-pressed='true'] {
+        background: color-mix(in oklab, var(--color-accent) 26%, transparent);
+        border-color: color-mix(in oklab, var(--color-accent-up) 55%, transparent);
+        color: var(--color-accent-up);
+      }
+    }
+
+    :focus-visible {
+      outline-color: var(--color-accent-up);
+    }
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .instrument {
+      background: color-mix(in oklab, var(--color-deep-3) 72%, transparent);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+      backdrop-filter: blur(18px) saturate(140%);
+    }
+  }
+
+  /* ── The wordmark ─────────────────────────────────────────────────────
+     One word: the accent on "Now" already divides it, so a space would be
+     redundant. Setting the halves flush in the markup is not enough: 気
+     carries its own right side bearing, which reads as a space, so the Latin
+     half is pulled back over half of it. Closed up completely, the two halves
+     touch.
+     The badge says what the thing is. It is quiet because the accent is
+     already spent on "Now", and a second bright mark would crowd a
+     five-character wordmark. Everything is in em, so the mark
+     survives being set at 1.05rem in the colophon and 1.3rem in the nav. */
+  .wordmark {
+    white-space: nowrap;
+  }
+
+  .wordmark-latin {
+    margin-inline-start: -0.03em;
+    color: var(--color-accent);
+  }
+
+  .wordmark-badge {
+    display: inline-block;
+    margin-inline-start: 0.36em;
+    padding: 0.2em 0.38em;
+    border: 1px solid color-mix(in oklab, var(--color-rule-2) 75%, transparent);
+    border-radius: 0.34em;
+    font-family: var(--font-mono);
+    font-size: 0.42em;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    /* A step up from muted: at 0.42em this is the smallest type on the page,
+       and the nav it sits in floats over a dark map where a pale glass panel
+       dims everything behind it. */
+    color: var(--color-neutral);
+    /* On the baseline, near enough: raised to cap height it reads as a
+       superscript (a trademark or a footnote marker), and the mark starts to
+       look like it is citing something. Sitting on the line it is part of the
+       lockup. */
+    vertical-align: 0.08em;
+  }
+
+  /* A row that scrolls sideways without a bar across it. The row is short and
+     its last item is visibly cut when there is more, which is the affordance;
+     a scrollbar here would be a second one under the sticky nav. */
+  .no-bar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  /* The map page on a phone is an app view, not a document: one fixed screen,
+     no page scroll, no footer under it to fall into. The map itself is the
+     scrollable surface, and a single finger pans it, which it cannot do while
+     the page behind it is also willing to scroll. The desktop layout already
+     fills the viewport, so only the phone needs saying. */
+  @media (width < 64rem) {
+    body:has(main.map-shell) {
+      height: 100dvh;
+      overflow: clip;
+      padding-block-end: 0;
+      overscroll-behavior: none;
+    }
+
+    main.map-shell ~ footer {
+      display: none;
+    }
+  }
+
+  /* A soft sky-tinted block, the way a section is marked off here, instead of
+     a hairline across the page. */
+  .tint {
+    background: linear-gradient(160deg, var(--color-mist), var(--color-mist-2));
+    border-radius: var(--radius-card);
+  }
+
+  /* An activity indicator sized to the type it sits in. Now that a request in
+     flight no longer announces itself in words, this is the only thing saying
+     so, which is why it is the one animation on the site that reduced motion
+     slows rather than stops. A frozen spinner reads as a hung request. */
+  .spinner {
+    display: inline-block;
+    flex: none;
+    width: 1em;
+    height: 1em;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  /* Unit suffix inside a readout value: 23.3 °C, 1019.5 hPa. Roman, never
+     italic, because this is a measurement. */
+  .unit {
+    font-style: normal;
+    font-family: var(--font-body);
+    font-size: 0.62em;
+    font-weight: 400;
+    color: var(--color-muted);
+    margin-left: 0.28em;
+    letter-spacing: 0;
+  }
+}

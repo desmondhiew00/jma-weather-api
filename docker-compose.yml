@@ -1,0 +1,27 @@
+# Local development: Postgres only.
+#
+# The binaries run on the host (`make run-api`, `make run-worker`) so edits
+# rebuild instantly and a debugger attaches normally. Production compose lives
+# in deploy/compose.yaml.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: weather
+      POSTGRES_PASSWORD: weather
+      POSTGRES_DB: weather
+    ports:
+      # 5433 on the host: 5432 is commonly already taken by another project.
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # postgres:18 expects a single mount at /var/lib/postgresql and puts
+      # the cluster in a version subdirectory; mounting .../data fails.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weather -d weather"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
